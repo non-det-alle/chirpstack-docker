@@ -58,7 +58,7 @@
 [network]
 
   # Network identifier (NetID, 3 bytes) encoded as HEX (e.g. 010203).
-  net_id="000000"
+  net_id="000036"
 
   # Enabled regions.
   #
@@ -95,7 +95,7 @@
   # is never exposed. Changing this secret will invalidate all login and API
   # tokens. The following command can be used to generate a random secret:
   #   openssl rand -base64 32
-  secret="you-must-replace-this"
+  secret="5DBHrRUTtc6g4QCdyoYPNjhV95CW6Yh3J/Y01yjuH5U="
 
 
 [integration]
@@ -104,3 +104,14 @@
   [integration.mqtt]
     server="tcp://$MQTT_BROKER_HOST:1883/"
     json=true
+
+# Monitoring related configuration.
+[monitoring]
+
+  # interface:port to bind the monitoring endpoint to (optional).
+  #
+  # /health  - Returns 200 in case the healthchecks have passed.
+  # /metrics - Returns metrics which can be scraped by Prometheus.
+  #
+  # If not set, this endpoint will be disabled.
+  bind="0.0.0.0:9323"
