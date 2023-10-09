@@ -1,6 +1,6 @@
 services:
   chirpstack:
-    image: chirpstack/chirpstack:4
+    image: nondetalle/chirpstack:4.9.0.cs.1
     command: -c /etc/chirpstack
     restart: unless-stopped
     volumes:
@@ -42,7 +42,7 @@ services:
       - mosquitto
 
   chirpstack-rest-api:
-    image: chirpstack/chirpstack-rest-api:4
+    image: nondetalle/chirpstack-rest-api:4.9.0.cs.1
     restart: unless-stopped
     command: --server chirpstack:8080 --bind 0.0.0.0:8090 --insecure
     ports:
@@ -66,7 +66,8 @@ services:
     restart: unless-stopped
     command: redis-server --save 300 1 --save 60 100 --appendonly no
     volumes:
-      - redisdata:/data
+      - type: tmpfs
+        target: /data
 
   mosquitto:
     image: eclipse-mosquitto:2
