@@ -18,12 +18,16 @@ services:
       - POSTGRESQL_HOST=postgres
     ports:
       - 8080:8080
+      # To access metrics on localhost
+      - 9323:9323
 
   chirpstack-gateway-bridge:
     image: chirpstack/chirpstack-gateway-bridge:4
     restart: unless-stopped
     ports:
       - 1700:1700/udp
+      # To access metrics on localhost
+      - 9325:9325
     volumes:
       - ./configuration/chirpstack-gateway-bridge:/etc/chirpstack-gateway-bridge
     environment:
@@ -66,7 +70,8 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     volumes:
-      - redisdata:/data
+      - type: tmpfs
+        target: /data
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -75,7 +80,25 @@ services:
       - 1883:1883
     volumes: 
       - ./configuration/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+  
+  prometheus:
+    image: prom/prometheus
+    restart: unless-stopped
+    ports:
+      - 9090:9090
+    volumes:
+      - ./configuration/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    volumes:
+      - ./configuration/grafana/datasources/:/etc/grafana/provisioning/datasources/
+      - grafana-storage:/var/lib/grafana
 
 volumes:
   postgresqldata:
   redisdata:
+  grafana-storage:
