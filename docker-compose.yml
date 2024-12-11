@@ -91,5 +91,17 @@ services:
       - influxdb2
     profiles: ["config-server"]
 
+  elora:
+    image: nondetalle/elora:0.2.2
+    network_mode: bridge
+    cap_add: [NET_ADMIN]
+    volumes:
+      - ./configuration/elora/configuration.toml:/home/elora/configuration.toml
+      - ./configuration/elora/example:/home/elora/ns-3-dev/scratch/elora-example
+      - ./data:/home/elora/data
+    depends_on:
+      - chirpstack
+    profiles: ["elora"]
+
 volumes:
   postgresqldata:
