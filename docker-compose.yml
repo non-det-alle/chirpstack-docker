@@ -79,5 +79,16 @@ services:
       DOCKER_INFLUXDB_INIT_ORG: cnam
       DOCKER_INFLUXDB_INIT_BUCKET: chirpstack
 
+  config-server:
+    image: config-server
+    build: ./configuration/config-server
+    restart: unless-stopped
+    volumes:
+      - ./configuration/config-server/config-server.toml:/usr/src/app/config-server.toml
+    depends_on:
+      - chirpstack
+      - influxdb2
+    profiles: ["config-server"]
+
 volumes:
   postgresqldata:

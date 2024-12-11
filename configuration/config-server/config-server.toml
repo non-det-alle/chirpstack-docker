@@ -1,0 +1,11 @@
+# The endpoint of your InfluxDB instance
+endpoint = "influxdb2:8086"
+
+# InfluxDB organization
+org = "cnam"
+
+# InfluxDB bucket where data is stored
+bucket = "chirpstack"
+
+# InfluxDB authentication token
+token = "token"
