@@ -1,10 +1,12 @@
-# ChirpStack Docker example
+# TODO
+
+<!-- # ChirpStack Docker example
 
 This repository contains a skeleton to setup the [ChirpStack](https://www.chirpstack.io)
 open-source LoRaWAN Network Server (v4) using [Docker Compose](https://docs.docker.com/compose/).
 
 **Note:** Please use this `docker-compose.yml` file as a starting point for testing
-but keep in mind that for production usage it might need modifications. 
+but keep in mind that for production usage it might need modifications.
 
 ## Directory layout
 
@@ -64,36 +66,21 @@ PostgreSQL and Redis data is persisted in Docker volumes, see the `docker-compos
 Before using this `docker-compose.yml` file, make sure you have [Docker](https://www.docker.com/community-edition)
 installed.
 
-## Importing device repository
-
-To import the [lorawan-devices](https://github.com/TheThingsNetwork/lorawan-devices)
-repository (optional step), run the following command:
-
-```bash
-make import-lorawan-devices
-```
-
-This will clone the `lorawan-devices` repository and execute the import command of ChirpStack.
-Please note that for this step you need to have the `make` command installed.
-
-**Note:** an older snapshot of the `lorawan-devices` repository is cloned as the
-latest revision no longer contains a `LICENSE` file.
-
 ## Usage
 
 To start the ChirpStack simply run:
 
 ```bash
-$ docker-compose up
+docker-compose up
 ```
 
 After all the components have been initialized and started, you should be able
-to open http://localhost:8080/ in your browser.
+to open <http://localhost:8080/> in your browser.
 
 ##
 
 The example includes the [ChirpStack REST API](https://github.com/chirpstack/chirpstack-rest-api).
-You should be able to access the UI by opening http://localhost:8090 in your browser.
+You should be able to access the UI by opening <http://localhost:8090> in your browser.
 
 **Note:** It is recommended to use the [gRPC](https://www.chirpstack.io/docs/chirpstack/api/grpc.html)
-interface over the [REST](https://www.chirpstack.io/docs/chirpstack/api/rest.html) interface.
+interface over the [REST](https://www.chirpstack.io/docs/chirpstack/api/rest.html) interface. -->
