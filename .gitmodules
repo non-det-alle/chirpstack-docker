@@ -1,0 +1,5 @@
+[submodule "configuration/config-server/chirpstack"]
+	path = configuration/config-server/chirpstack
+	url = https://github.com/non-det-alle/chirpstack.git
+	branch = config-store
+	shallow = true
