@@ -1,0 +1,10 @@
+
+services:
+  elora:
+    image: nondetalle/elora:0.2.2
+    network_mode: bridge
+    cap_add: [NET_ADMIN]
+    volumes:
+      - ./configuration.toml:/home/elora/configuration.toml
+      - ./example:/home/elora/ns-3-dev/scratch/elora-example
+      - ../data:/home/elora/data

@@ -1,0 +1,99 @@
+######################### ELoRa example configuration file #########################
+#
+# This file is used to specify which simulation target will be run by ns-3
+# (for instance, see elora-example.cc) as well as the parameters to pass to
+# the simulation.
+#
+# Any setting other than the 'target' needs to be exposed in advance 
+# using cmd.AddValue(...) in the main .cc file.
+#
+
+# ChirpStack gateway bridge address
+# (Leave it like this if it is hosted locally)
+destAddr = "172.17.0.1"
+
+# Name of the tap interface that you will create with ns-3 
+#
+# These setting must reflect the name of the tap created by your simulation
+# (needed here to link the interface created by ns-3 with the outside)
+#
+tap = "ns3-tap"
+
+[run]
+
+# Required simulation target to run with ns-3.
+# Simulation files are to be loaded as a volume in docker-compose.yml
+target = "elora-example"
+
+# Arguments to pass to the simulation.
+[run.args]
+
+# Seed to use in the random generation engine of ns-3
+# 
+# This also allows to run multiple ELoRa instances in parallel,
+# with the additional condition of RngRun_1 != RngRun_2 mod(128)
+# as the NetworkId field of LoRaWAN addresses is 7 bits. 
+# (this number will be appended to the tenant name)
+RngRun = 1
+
+# These are specific to the implementation (elora-example.cc in this case)
+#
+# Note: the following part of the configuration file exists only to improve 
+#  quality of life, all this settings could be set directly in the main .cc file.
+
+# Chirpstack tenant that will be associated to this ELoRa instance
+tenant = "ELoRa"
+
+# Chirpstack REST API endpoint IP address
+# (Leave it like this if it is hosted locally)
+apiAddr = "172.17.0.1"
+
+# Chirpstack REST API endpoint port
+apiPort = 8090
+
+# Chirpstack API token (this needs to be generated in Chirpstack and copy-pasted here)
+token = "..."
+
+# Port used by the ChirpStack Gateway Bridge at the destination 
+destPort = 1700
+
+# Number of periods to simulate (1 period = 1 hour)
+periods = 24
+
+# Number of gateway rings to instantiate using hexagonal topology
+#   
+#   1 = 1 gateway
+#   2 = 7 gateways
+#   3 = 19 gateways
+#   ...
+#
+rings = 1
+
+# Radius of the device allocation disk around a gateway
+# (range * 2 = gateway distance)
+range = 2540.25
+
+# Number of end devices to include in the simulation
+devices = 1
+
+# Signal to Interference Ratio matrix used for interference
+# 
+# Options: [CROCE, GOURSAUD, ALHOA]
+#
+sir = "GOURSAUD"
+
+# Whether to pre-initialize the SFs of devices before starting the sumulation
+# (uses a conservative version of the default ADR algorithm, without power management)
+initSF = true
+
+# Whether to enable the ADR bit 
+adr = true
+
+# Use test devices (5s period, 5B payload) instead of realistic urban M2M traffic
+test = true
+
+# Whether to enable .pcap tracing on gateways
+file = false
+
+# Enable logging to std output
+log = false
