@@ -9,8 +9,7 @@
 #
 
 # ChirpStack gateway bridge address
-# (Leave it like this if it is hosted locally)
-destAddr = "172.17.0.1"
+destAddr = "chirpstack-gateway-bridge"
 
 # Name of the tap interface that you will create with ns-3 
 #
@@ -44,9 +43,8 @@ RngRun = 1
 # Chirpstack tenant that will be associated to this ELoRa instance
 tenant = "ELoRa"
 
-# Chirpstack REST API endpoint IP address
-# (Leave it like this if it is hosted locally)
-apiAddr = "172.17.0.1"
+# Chirpstack REST API endpoint address
+apiAddr = "chirpstack-rest-api"
 
 # Chirpstack REST API endpoint port
 apiPort = 8090
