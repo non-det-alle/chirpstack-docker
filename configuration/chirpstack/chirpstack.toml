@@ -82,6 +82,7 @@
     "us915_1",
   ]
 
+  get_downlink_data_delay="500ms"
 
 # API interface configuration.
 [api]
