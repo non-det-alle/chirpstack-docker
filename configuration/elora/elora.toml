@@ -85,7 +85,7 @@ sir = "GOURSAUD"
 initSF = true
 
 # Whether to enable the ADR bit 
-adr = true
+adr = false
 
 # Use test devices (5s period, 5B payload) instead of realistic urban M2M traffic
 test = true
@@ -94,4 +94,4 @@ test = true
 file = false
 
 # Enable logging to std output
-log = false
+log = true

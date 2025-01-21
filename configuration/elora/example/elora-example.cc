@@ -88,7 +88,7 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::BaseEndDeviceLorawanMac::ADRBackoff", BooleanValue(true));
     Config::SetDefault("ns3::BaseEndDeviceLorawanMac::EnableCryptography", BooleanValue(true));
     Config::SetDefault("ns3::BaseEndDeviceLorawanMac::FType",
-                       EnumValue(LorawanMacHeader::CONFIRMED_DATA_UP));
+                       EnumValue(LorawanMacHeader::UNCONFIRMED_DATA_UP));
     ///////////////// Needed to manage the variance introduced by real world interaction
     Config::SetDefault("ns3::ClassAEndDeviceLorawanMac::RecvWinSymb", UintegerValue(16));
 
@@ -101,6 +101,7 @@ main(int argc, char* argv[])
         LogComponentEnable("ClassAEndDeviceLorawanMac", LOG_LEVEL_INFO);
         LogComponentEnable("BaseEndDeviceLorawanMac", LOG_LEVEL_INFO);
         // LogComponentEnable ("LoraFrameHeader", LOG_LEVEL_INFO);
+        LogComponentEnable("EndDeviceLoraPhy", LOG_LEVEL_INFO);
         /* Monitor state changes of devices */
         LogComponentEnable("EloraUtilities", LOG_LEVEL_ALL);
         /* Formatting */
@@ -262,7 +263,7 @@ main(int argc, char* argv[])
         {
             PeriodicSenderHelper appHelper;
             appHelper.SetPeriodGenerator(
-                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
+                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(10.0)));
             appHelper.SetPacketSizeGenerator(
                 CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
             appHelper.Install(endDevices);
