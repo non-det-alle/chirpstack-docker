@@ -1,5 +1,23 @@
+# LoRaWAN network server to apply device configurations
+[chirpstack]
+
+# This must point to the API interface.
+endpoint = "chirpstack:8080"
+
+# The API token (retrieved using the web-interface).
+api_token = "..."
+
+# The tenant id (retrieved using the web-interface)
+tenant_name = "ELoRa-1"
+
+# Time-series database for the metrics collection system
+[influxdb2]
+
 # The endpoint of your InfluxDB instance
 endpoint = "influxdb2:8086"
+
+# InfluxDB authentication token
+token = "token"
 
 # InfluxDB organization
 org = "cnam"
@@ -7,5 +25,7 @@ org = "cnam"
 # InfluxDB bucket where data is stored
 bucket = "chirpstack"
 
-# InfluxDB authentication token
-token = "token"
+# Mqtt broker for event polling
+[mosquitto]
+
+endpoint = "mosquitto:1883"
