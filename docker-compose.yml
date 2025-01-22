@@ -90,7 +90,7 @@ services:
     depends_on:
       - chirpstack
       - influxdb2
-    profiles: ["config-server"]
+    profiles: ["config-server", "full"]
 
   elora:
     image: nondetalle/elora:latest
@@ -101,7 +101,7 @@ services:
       - ./data:/home/elora/data
     depends_on:
       - chirpstack
-    profiles: ["elora"]
+    profiles: ["elora", "full"]
 
 volumes:
   postgresqldata:
