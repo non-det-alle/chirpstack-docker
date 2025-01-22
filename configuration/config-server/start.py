@@ -16,6 +16,71 @@ import toml
 import sys
 import time
 
+#        CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM
+#
+#                       _________________                  _________________
+#                      |                 |  [3] past      |                 |
+#                      |  Config Server  |      metrics   | Metrics Storage |
+#                      |     (this)      | <------------- |   (influxdb2)   |
+#                      |_________________|                |_________________|
+#                        ^           ^ \                    ^
+#                       /             \ \                  /
+#       [2.a] uplink   /    [4] device \ \ [5] new        / [2.b] uplink
+#             metrics /         state & \ \    configs   /        metrics
+#                    /          configs  \ \            /
+#                   /                     \ \          /
+#                  /                       \ ⌄        /
+#       _____________                    ________________
+#      |             |   [1] uplink     |                |
+#      |             | ---------------> |                |
+#      |             | <--------------- |                |
+#      | MQTT Broker |   [2.a] uplink   | LoRaWAN Server |
+#      | (mosquitto) |         metrics  |  (chirpstack)  |
+#      |             |                  |                |
+#      |             | <--------------- |                |
+#      |_____________|   [6] downlink   |________________|
+#         / / | \ \
+#        /         \
+#       /           \
+#      /             \
+#    GW_1   . . .   GW_n   Gateways
+#
+#   ~~~ Radio channel ~~~
+#
+#     ED_1  . . .  ED_m    End Devices
+#
+#
+# Communication protocols:
+# - MQTT [1], [2.a], [6]
+# - REST [2.b], [3]
+# - gRPC [4], [5]
+#
+# Detailed overview:
+# [1] uplink: uplink message received from a gateway being relayed to
+#     ChirpStack by the MQTT broker.
+# [2] uplink metrics: message metadata being distpatched by ChirpStack to the
+#     Config Server (via MQTT topic subscription [2.a]) and to the Metrics
+#     Storage (via InfluxDB2 REST API [2.b]).
+# [3] past metrics: past uplink records and metrics being queried by the Config
+#     Server (using the InfluxDB2 REST API and the Flux query language).
+#     Metrics aggregation can happen either in the Storage using Flux queries,
+#     or directly in the Config Server (less optimal in distributed settings).
+# [4] device state & configs: known parameter state of the device and current
+#     configuration stored in the server, obtained using ChirpStack's gRPC API.
+#     Together with traffic metrics, this information should be used in the
+#     decision making process to evaluate if a needed configuration is
+#     compatible or needed by the device.
+# [5] new config: new configuration for the device sent by the Config Server to
+#     ChirpStack's device configuration storage (via gRPC API). This should be
+#     skipped if no configuration is needed.
+# [6] downlink: downlink message from ChirpStack to a device. This message is
+#     relayed by the MQTT broker to the correct gateway, that will send it over
+#     the Radio channel at the right time to meet the reception window of the
+#     device. New configurations are inserted in the downlink packet:
+#     ChirpStack has a dedicated parameter to increase the amount of time it
+#     will wait before creating the downlink, allowing for configurations to be
+#     added.
+
 
 def main():
     if len(sys.argv) != 3 or sys.argv[1] != "-c":
@@ -74,6 +139,11 @@ def main():
                 return
             # Time series of frame counters
             f_cnts = uplink_records["f_cnt"].astype(int)
+            # Add latest record if missing
+            if f_cnts.iat[-1] != uplink_event.f_cnt:
+                # avoid gw reception time (uplink_event.time), it can mess up order
+                f_cnts[pd.Timestamp.now("UTC")] = uplink_event.f_cnt
+                f_cnts = f_cnts.sort_index()
             # Compute Packet Delivery Ratio (PDR)
             recv = f_cnts.count()
             sent = f_cnts.diff()
@@ -137,13 +207,15 @@ class InfluxDBClientWrapper:
             |> filter(fn: (r) => r._field != "value") \
             |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")'
         df = self.query_api.query_data_frame(query, org=self.org)
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Queried object is not a DataFrame")
         if df.empty:
             raise ValueError("Not enough records in the database.")
         return (
             df.drop(columns=["result", "table"])
             .set_index("_time")
-            .sort_index()
             .drop_duplicates()
+            .sort_index()
         )
 
 
