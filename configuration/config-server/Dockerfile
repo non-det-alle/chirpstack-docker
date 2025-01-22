@@ -1,19 +1,26 @@
-FROM python:3.9-alpine AS builder
+FROM python:3.11.0 AS builder
 
-# Install python dependencies
+ENV PROJECT_PATH=/chirpstack/api
+
+RUN git clone --depth=1 https://github.com/protocolbuffers/protobuf.git /protobuf
+RUN git clone --depth=1 https://github.com/googleapis/googleapis.git /googleapis
+
+COPY chirpstack/api $PROJECT_PATH
+WORKDIR $PROJECT_PATH
+
+RUN sh -c "cd python && make all"
+
+FROM python:alpine
+
+COPY --from=builder /chirpstack/api/python/src /chirpstack_api
+
 COPY requirements.txt ./
-COPY chirpstack/api/python/src ./chirpstack_api
-RUN pip install ./chirpstack_api && \
+RUN pip install --no-cache-dir /chirpstack_api && \
     pip install --no-cache-dir -r requirements.txt
-
-FROM python:3.9-alpine
-
-COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
 WORKDIR /usr/src/app
 
 # Configure container startup
-CMD ["python", "./start.py"]
+CMD ["python", "-u", "start.py", "-c", "config-server.toml"]
 
-# Copy files as late as possible to avoid cache busting during development
-COPY start.py ./
+# start.py must be loaded as a volume to facilitate development 

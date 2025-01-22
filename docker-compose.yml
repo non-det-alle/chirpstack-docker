@@ -83,7 +83,7 @@ services:
   config-server:
     image: nondetalle/config-server:latest
     build: ./configuration/config-server
-    restart: unless-stopped
+    #restart: unless-stopped
     volumes:
       - ./configuration/config-server/start.py:/usr/src/app/start.py
       - ./configuration/config-server/config-server.toml:/usr/src/app/config-server.toml
