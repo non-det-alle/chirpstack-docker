@@ -94,13 +94,22 @@ services:
   elora:
     image: nondetalle/elora:latest
     cap_add: [NET_ADMIN]
+    secrets: [chirpstack-api-token]
+    environment: 
+      CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
       - ./configuration/elora/elora.toml:/home/elora/configuration.toml
       - ./configuration/elora/example:/home/elora/ns-3-dev/scratch/elora-example
       - ./data:/home/elora/data
     depends_on:
-      - chirpstack
+      - chirpstack-rest-api
+      - chirpstack-gateway-bridge
+      - influxdb2
     profiles: ["elora", "full"]
+
+secrets:
+  chirpstack-api-token:
+    file: .env.chirpstack-api-token
 
 volumes:
   postgresqldata:
