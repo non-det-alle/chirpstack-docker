@@ -85,11 +85,14 @@ services:
 
   config-server:
     image: nondetalle/config-server:latest
+    command: -c config-server.toml
     build: ./configuration/config-server
-    #restart: unless-stopped
+    restart: unless-stopped
+    secrets: [chirpstack-api-token]
+    environment: 
+      CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
-      - ./configuration/config-server/start.py:/usr/src/app/start.py
-      - ./configuration/config-server/config-server.toml:/usr/src/app/config-server.toml
+      - ./configuration/config-server:/usr/src/app
     depends_on:
       - chirpstack
       - influxdb2

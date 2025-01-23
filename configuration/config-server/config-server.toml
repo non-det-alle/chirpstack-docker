@@ -4,9 +4,6 @@
 # This must point to the API interface.
 endpoint = "chirpstack:8080"
 
-# The API token (retrieved using the web-interface).
-api_token = "..."
-
 # The tenant id (retrieved using the web-interface)
 tenant_name = "ELoRa-1"
 
