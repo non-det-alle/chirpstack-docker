@@ -15,6 +15,7 @@ import pandas as pd
 import toml
 import sys
 import time
+import os
 
 #        CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM
 #
@@ -84,7 +85,7 @@ import time
 
 def main():
     if len(sys.argv) != 3 or sys.argv[1] != "-c":
-        print("Usage: python start.py -c <path/to/network/c/file>")
+        print("Usage: python start.py -c <path/to/config/file.toml>")
         return 1
     c = toml.load(sys.argv[2])
 
@@ -92,6 +93,8 @@ def main():
     c["influxdb2"]["url"] = "http://" + c["influxdb2"]["endpoint"]
     c["mosquitto"]["hostname"] = c["mosquitto"]["endpoint"].split(":")[0]
     c["mosquitto"]["port"] = c["mosquitto"]["endpoint"].split(":")[1]
+    with open(os.environ["CHIRPSTACK_API_TOKEN_FILE"], "r") as f:
+        c["chirpstack"]["api_token"] = f.readline().rstrip("\n")
 
     # Time frame for aggregation of metrics
     history = "30m"
