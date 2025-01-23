@@ -9,7 +9,6 @@ services:
       - postgres
       - mosquitto
       - redis
-      - influxdb2
     environment:
       - MQTT_BROKER_HOST=mosquitto
       - REDIS_HOST=redis
@@ -79,6 +78,9 @@ services:
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: token
       DOCKER_INFLUXDB_INIT_ORG: cnam
       DOCKER_INFLUXDB_INIT_BUCKET: chirpstack
+    volumes:
+      - type: tmpfs
+        target: /var/lib/influxdb2
 
   config-server:
     image: nondetalle/config-server:latest
