@@ -2,6 +2,10 @@
 
 Generate chirpstack api token from web UI and paste it in config-server.toml and elora.toml
 
+```sh
+docker compose run --rm chirpstack -c /etc/chirpstack create-api-key --name config-store | sed -n 's/^token: //p' > .env.chirpstack-api-token
+```
+
 <!-- # ChirpStack Docker example
 
 This repository contains a skeleton to setup the [ChirpStack](https://www.chirpstack.io)
