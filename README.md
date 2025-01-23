@@ -76,7 +76,7 @@ Make sure you have docker and docker-compose installed. This implementation can 
 Clone the repo recursively, especially if you intend to rebuild the `config-server` container after implementing a new management algorithm:
 
 ```sh
-git clone --recurse-submodules <repo/url>
+git clone --recurse-submodules https://github.com/non-det-alle/chirpstack-docker.git
 ```
 
 Generate ChirpStack api token by running in the repo's root:
