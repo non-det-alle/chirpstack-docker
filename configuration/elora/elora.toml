@@ -49,9 +49,6 @@ apiAddr = "chirpstack-rest-api"
 # Chirpstack REST API endpoint port
 apiPort = 8090
 
-# Chirpstack API token (this needs to be generated in Chirpstack and copy-pasted here)
-token = "..."
-
 # Port used by the ChirpStack Gateway Bridge at the destination 
 destPort = 1700
 
@@ -78,7 +75,7 @@ devices = 1
 # 
 # Options: [CROCE, GOURSAUD, ALHOA]
 #
-sir = "GOURSAUD"
+sir = "CROCE"
 
 # Whether to pre-initialize the SFs of devices before starting the sumulation
 # (uses a conservative version of the default ADR algorithm, without power management)
