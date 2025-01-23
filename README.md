@@ -76,7 +76,7 @@ Make sure you have docker and docker-compose installed. This implementation can 
 Clone the repo recursively, especially if you intend to rebuild the `config-server` container after implementing a new management algorithm:
 
 ```sh
-git clone --recursive <repo/url>
+git clone --recurse-submodules <repo/url>
 ```
 
 Generate ChirpStack api token by running in the repo's root:
@@ -101,7 +101,7 @@ docker compose logs -f [SERVICE]
 
 where `SERVICE` is the name specified in [`docker-compose.yml`](docker-compose.yml) for a container. Most insightful are `chirpstack`, `elora` and `config-server`.
 
-## Developing algorithms and running them in config-server
+## Development
 
 Implement your algorithm and other changes in [`configuration/config-server/`](configuration/config-server/). For testing, the suggested method is as follows:
 
