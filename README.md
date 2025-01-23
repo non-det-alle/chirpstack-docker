@@ -69,13 +69,23 @@ From [`configuration/config-server/start.py`](configuration/config-server/start.
      added.
 ```
 
-## Running
+## First steps
+
+Make sure you have docker and docker-compose installed. This implementation can be run fully inside docker if you have any problem with networking on your machine (exposing ports on localhost, etc.)
+
+Clone the repo recursively, especially if you intend to rebuild the `config-server` container after implementing a new management algorithm:
+
+```sh
+git clone --recursive <repo/url>
+```
 
 Generate ChirpStack api token by running in the repo's root:
 
 ```sh
 docker compose run --rm chirpstack -c /etc/chirpstack create-api-key --name config-store | sed -n 's/^token: //p' > .env.chirpstack-api-token
 ```
+
+## Running
 
 Then run the full infrastructure demo with ELoRa for traffic generation:
 
@@ -90,6 +100,16 @@ docker compose logs -f [SERVICE]
 ```
 
 where `SERVICE` is the name specified in [`docker-compose.yml`](docker-compose.yml) for a container. Most insightful are `chirpstack`, `elora` and `config-server`.
+
+## Developing algorithms and running them in config-server
+
+Implement your algorithm and other changes in [`configuration/config-server/`](configuration/config-server/). For testing, the suggested method is as follows:
+
+* `docker compose up --attach chirpstack`: Run the whole infrastructure minus the `config-server` and traffic generation (`elora`) and follow `chirpstack` logs
+* `docker compose up elora`: In a second terminal, run the emulated access network
+* `docker compose up config-server`: In a third terminal, run the configuration server
+
+To stop them simply `Ctrl-C` in the windows. If anythong breaks (*let us know!*) run `docker compose --profile full down` to reset everything.
 
 <!-- # ChirpStack Docker example
 
