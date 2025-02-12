@@ -70,7 +70,7 @@ services:
     image: influxdb:2.7
     restart: unless-stopped
     ports:
-      - 8086:8086
+      - "8086:8086"
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: admin
@@ -80,14 +80,15 @@ services:
       DOCKER_INFLUXDB_INIT_BUCKET: chirpstack
 
   config-server:
-    build: ./configuration/config-server
+    build: ./configuration/config-server/build
     command: -c config-server.toml
     restart: unless-stopped
     secrets: [chirpstack-api-token]
     environment: 
       CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
-      - ./configuration/config-server:/usr/src/app
+      - ./configuration/config-server/config-server.toml:/usr/src/app/config-server.toml
+      - ./configuration/config-server/src:/usr/src/app/src
     depends_on:
       - chirpstack
       - influxdb2

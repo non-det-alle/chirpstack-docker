@@ -69,31 +69,53 @@ From [`configuration/config-server/start.py`](configuration/config-server/start.
      added.
 ```
 
-## First steps
+## Prerequisites
 
 Make sure you have docker and docker-compose installed. This implementation can be run fully inside docker if you have any problem with networking on your machine (exposing ports on localhost, etc.)
 
-Clone the repo recursively, especially if you intend to rebuild the `config-server` container after implementing a new management algorithm:
+Clone the repo *recursively*, especially if you intend to rebuild the `config-server` container after implementing a new management algorithm:
 
 ```sh
 git clone --recurse-submodules https://github.com/non-det-alle/chirpstack-docker.git
 ```
 
-Generate ChirpStack api token by running in the repo's root:
+Generate ChirpStack API token by running in the repo's root:
 
 ```sh
-docker compose run --rm chirpstack -c /etc/chirpstack create-api-key --name config-store | sed -n 's/^token: //p' > .env.chirpstack-api-token
+docker compose up chirpstack -d && sleep 1 && docker compose run --rm chirpstack -c /etc/chirpstack create-api-key --name config-store | sed -n 's/^token: //p' > .env.chirpstack-api-token && docker compose down
 ```
+
+This command runs a temporary ChirpStack instance, instantiating a volume used by ChirpStack for persistent storage. This allows us to then generate an API key that will remain valid the next time you run the infrastructure.
 
 ## Running
 
-Then run the full infrastructure demo with ELoRa for traffic generation:
+> This is a suggested workflow to showcase the capabilities of the `config-server` function.
+>
+> Checkout [docker compose documentation](https://docs.docker.com/compose/intro/compose-application-model/) for more.
+
+Run the infrastructure (minus the `config-server`) in the background with:
+
+```sh
+docker compose up -d
+```
+
+Now you can:
+
+* `docker compose logs -f chirpstack`: Follow `chirpstack` logs to check what the network server is doing
+* `docker compose up elora`: In a second terminal, run the emulated access network using ELoRa
+* `docker compose up config-server`: In a third terminal, run the configuration server
+
+To stop `elora` or the `config-server`, simply `Ctrl-C` in the windows. If anything breaks (*let us know!*) run `docker compose --profile full down` to remove all containers and start from scratch.
+
+### More options
+
+Run the full infrastructure demo in one go with ELoRa for traffic generation:
 
 ```sh
 docker compose --profile full up -d
 ```
 
-Follow specific logs with:
+Then, follow specific logs with:
 
 ```sh
 docker compose logs -f [SERVICE]
@@ -103,13 +125,7 @@ where `SERVICE` is the name specified in [`docker-compose.yml`](docker-compose.y
 
 ## Development
 
-Implement your algorithm and other changes in [`configuration/config-server/`](configuration/config-server/). For testing, the suggested method is as follows:
-
-* `docker compose up --attach chirpstack`: Run the whole infrastructure minus the `config-server` and traffic generation (`elora`) and follow `chirpstack` logs
-* `docker compose up elora`: In a second terminal, run the emulated access network
-* `docker compose up config-server`: In a third terminal, run the configuration server
-
-To stop them simply `Ctrl-C` in the windows. If anythong breaks (*let us know!*) run `docker compose --profile full down` to reset everything.
+Implement your algorithm and other changes in [`configuration/config-server/src`](configuration/config-server/src). You can find the source for this demo in the file `start.py`. The `src` directory is loaded as a shared volume in the container, so changes can be loaded by simply runnning `docker compose up config-server` again. Changing language will require you to write your own `Dockerfile` to build the container environment.
 
 ## More documentation
 
