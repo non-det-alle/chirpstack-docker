@@ -18,4 +18,4 @@ RUN apk add --no-cache tini && \
 WORKDIR /usr/src/app
 
 # start.py loaded as volume to facilitate development 
-ENTRYPOINT ["/sbin/tini", "-g", "--", "python", "-u", "start.py"]
+ENTRYPOINT ["/sbin/tini", "-g", "--", "python", "-u", "src/start.py"]
