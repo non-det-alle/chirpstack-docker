@@ -85,9 +85,9 @@ import os
 
 def main():
     if len(sys.argv) != 3 or sys.argv[1] != "-c":
-        print("Usage: python start.py -c <path/to/config/file.toml>")
+        print("Usage: python start.py -c <path/to/config/file/dir>")
         return 1
-    c = toml.load(sys.argv[2])
+    c = toml.load(sys.argv[2] + "/config-server.toml")
 
     # Unpack network configs
     c["influxdb2"]["url"] = "http://" + c["influxdb2"]["endpoint"]

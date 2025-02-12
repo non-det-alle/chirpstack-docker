@@ -81,14 +81,14 @@ services:
 
   config-server:
     build: ./configuration/config-server/build
-    command: -c config-server.toml
+    command: -c /etc/config-server
     restart: unless-stopped
     secrets: [chirpstack-api-token]
     environment: 
       CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
-      - ./configuration/config-server/config-server.toml:/usr/src/app/config-server.toml
-      - ./configuration/config-server/src:/usr/src/app/src
+      - ./configuration/config-server/config:/etc/config-server
+      - ./configuration/config-server/src:/usr/src/app
     depends_on:
       - chirpstack
       - influxdb2
