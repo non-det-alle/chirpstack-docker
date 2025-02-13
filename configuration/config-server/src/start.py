@@ -118,6 +118,9 @@ def main():
         while True:
             try:
                 tenant_id = cs_client.get_tenant_id(c["chirpstack"]["tenant_name"])
+                application_ids = cs_client.get_application_ids(tenant_id)
+                if not application_ids:
+                    raise ValueError("Missing application.")
                 application_id = cs_client.get_application_ids(tenant_id)[0]
             except ValueError as e:
                 print(f"{e} Retrying in 1s.\n")
@@ -161,7 +164,7 @@ def main():
             # (Example: Restrict the number of channels if PDR is >70%)
             chmask = reduced_chmask if pdr >= 0.7 else list(range(8))
             # Set chmask if compatible
-            cs_client.get_device_config_alignment(dev_eui)
+            _ = cs_client.get_device_config_alignment(dev_eui)  # showcase
             cs_client.set_chmask_for_device(chmask, dev_eui)
 
             # Cleanup and disconnect after N messages
@@ -181,7 +184,7 @@ def main():
 
 
 class InfluxDBClientWrapper:
-    def __init__(self, url, token, org, bucket):
+    def __init__(self, url: str, token: str, org: str, bucket: str) -> None:
         self.url = url
         self.token = token
         self.org = org
@@ -195,13 +198,15 @@ class InfluxDBClientWrapper:
     def __exit__(self, exc_type, exc_value, traceback):
         self.client.close()
 
-    def get_uplink_records(self, dev_eui, start, stop="now()") -> pd.DataFrame:
+    def get_uplink_records(
+        self, dev_eui: str, start: str, stop: str = "now()"
+    ) -> pd.DataFrame:
         """Get DataFrame cointaining database records on uplink frames for a device.
 
         Args:
-            dev_eui (str): EUI identifier of a device we want to query data of.
-            start (str): Start time of the time windows of data to be retrieved. Can be relative duration, absolute time, or integer (Unix timestamp in seconds). For example, "-1h", "2019-08-28T22:00:00Z", or "1567029600".
-            stop (str, optional): See start for possible values. Defaults to "now()".
+            dev_eui: EUI identifier of a device we want to query data of.
+            start: Start time of the time windows of data to be retrieved. Can be relative duration, absolute time, or integer (Unix timestamp in seconds). For example, "-1h", "2019-08-28T22:00:00Z", or "1567029600".
+            stop (optional): See start for possible values. Defaults to "now()".
         """
         query = f'from(bucket: "{self.bucket}") \
             |> range(start: {start}, stop: {stop}) \
@@ -223,7 +228,7 @@ class InfluxDBClientWrapper:
 
 
 class ChirpStackClient:
-    def __init__(self, endpoint, token):
+    def __init__(self, endpoint: str, token: str) -> None:
         self.endpoint = endpoint
         self.metadata = [("authorization", "Bearer %s" % token)]
 
@@ -235,7 +240,7 @@ class ChirpStackClient:
     def __exit__(self, exc_type, exc_value, traceback):
         self.channel.close()
 
-    def get_tenant_id(self, tenant_name):
+    def get_tenant_id(self, tenant_name: str) -> str:
         tenant_api = api.TenantServiceStub(self.channel)
         resp: api.ListTenantsResponse = tenant_api.List(
             api.ListTenantsRequest(search=tenant_name, limit=100),
@@ -247,19 +252,19 @@ class ChirpStackClient:
         print(f"Tenant ID: {tenant_id}")
         return tenant_id
 
-    def get_application_ids(self, tenant_id):
+    def get_application_ids(self, tenant_id: str) -> list[str]:
         application_api = api.ApplicationServiceStub(self.channel)
         resp: api.ListApplicationsResponse = application_api.List(
             api.ListApplicationsRequest(tenant_id=tenant_id, limit=100),
             metadata=self.metadata,
         )
         if resp.total_count == 0:
-            raise ValueError("Missing application.")
+            return []
         app_ids = [app.id for app in resp.result]
         print(f"Application IDs: {app_ids}")
         return app_ids
 
-    def get_dev_euis(self, application_id):
+    def get_dev_euis(self, application_id: str) -> list[str]:
         device_api = api.DeviceServiceStub(self.channel)
         page = 0
         dev_euis = []
@@ -278,7 +283,7 @@ class ChirpStackClient:
         print(f"Dev EUIs: {dev_euis}")
         return dev_euis
 
-    def create_device_config(self, config_store):
+    def create_device_config(self, config_store: api.DeviceConfigStore) -> None:
         try:
             self.config_store_api.Create(
                 api.CreateDeviceConfigStoreRequest(device_config_store=config_store),
@@ -293,7 +298,7 @@ class ChirpStackClient:
                 raise e
         print(f"=> CreateDeviceConfigStore: {config_store}")
 
-    def get_device_config(self, dev_eui):
+    def get_device_config(self, dev_eui: str) -> api.DeviceConfigStore | None:
         try:
             resp: api.GetDeviceConfigStoreResponse = self.config_store_api.Get(
                 api.GetDeviceConfigStoreRequest(dev_eui=dev_eui),
@@ -308,14 +313,14 @@ class ChirpStackClient:
         print(f"GetDeviceConfigStore: {resp.device_config_store}")
         return resp.device_config_store
 
-    def update_device_config(self, config_store):
+    def update_device_config(self, config_store: api.DeviceConfigStore) -> None:
         self.config_store_api.Update(
             api.UpdateDeviceConfigStoreRequest(device_config_store=config_store),
             metadata=self.metadata,
         )
         print(f"=> UpdateDeviceConfigStore: {config_store}")
 
-    def delete_device_config(self, dev_eui):
+    def delete_device_config(self, dev_eui: str) -> None:
         try:
             self.config_store_api.Delete(
                 api.DeleteDeviceConfigStoreRequest(dev_eui=dev_eui),
@@ -324,11 +329,11 @@ class ChirpStackClient:
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 # Silently continue
-                return None
+                pass
             else:
                 raise e
 
-    def list_configured_devices(self, application_id):
+    def list_configured_devices(self, application_id: str) -> list[str]:
         page = 0
         dev_euis = []
         while True:
@@ -346,7 +351,7 @@ class ChirpStackClient:
         print(f"Dev EUIs: {dev_euis}")
         return dev_euis
 
-    def chmask_is_compatible(self, chmask, dev_eui):
+    def chmask_is_compatible(self, chmask: list[int], dev_eui: str) -> bool:
         # Check available uplink channels
         resp: api.GetAvailableChannelsResponse = (
             self.config_store_api.GetAvailableUplinkChannels(
@@ -362,7 +367,7 @@ class ChirpStackClient:
             return False
         return True
 
-    def set_chmask_for_device(self, chmask, dev_eui):
+    def set_chmask_for_device(self, chmask: list[int], dev_eui: str) -> None:
         # Validate compatibility with installed channels
         if not self.chmask_is_compatible(chmask, dev_eui):
             print(f"Configuration not compatible (chmask: {chmask})")
@@ -382,7 +387,7 @@ class ChirpStackClient:
             device_config_store.chmask_config.CopyFrom(chmask_config)
             self.update_device_config(device_config_store)
 
-    def get_device_config_alignment(self, dev_eui):
+    def get_device_config_alignment(self, dev_eui: str) -> api.ConfigStoreAlignment:
         try:
             resp: api.GetConfigStoreAlignmentResponse = (
                 self.config_store_api.GetConfigStoreAlignment(
