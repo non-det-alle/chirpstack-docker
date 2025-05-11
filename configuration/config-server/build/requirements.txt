@@ -1,6 +1,6 @@
 # requirements.txt
 
-chirpstack-api==4.9.0+cs.2
+chirpstack-api==4.12.0+cs.3
 influxdb-client
 paho-mqtt
 pandas
