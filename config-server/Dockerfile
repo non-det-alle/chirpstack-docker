@@ -1,9 +1,11 @@
 FROM python:3.11.0 AS builder
 
+ARG VERSION
+
 RUN git clone --depth=1 https://github.com/protocolbuffers/protobuf.git /protobuf
 RUN git clone --depth=1 https://github.com/googleapis/googleapis.git /googleapis
 
-COPY chirpstack/api /chirpstack/api
+RUN git clone --depth=1 -b $VERSION https://github.com/non-det-alle/chirpstack.git /chirpstack
 RUN cd /chirpstack/api/python && make all
 
 FROM python:alpine

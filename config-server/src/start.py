@@ -8,7 +8,7 @@ from influxdb_client import InfluxDBClient, QueryApi
 # MQTT subcriber imports
 import paho.mqtt.subscribe as mqtt_subscribe
 import paho.mqtt.client as mqtt
-from google.protobuf.json_format import Parse
+from google.protobuf.json_format import Parse, MessageToDict
 from chirpstack_api.integration import UplinkEvent
 
 import pandas as pd
@@ -121,7 +121,7 @@ def main():
                 application_ids = cs_client.get_application_ids(tenant_id)
                 if not application_ids:
                     raise ValueError("Missing application.")
-                application_id = cs_client.get_application_ids(tenant_id)[0]
+                application_id = application_ids[0]
             except ValueError as e:
                 print(f"{e} Retrying in 1s.\n")
                 time.sleep(1)
@@ -163,8 +163,14 @@ def main():
             ####################################################
             # (Example: Restrict the number of channels if PDR is >70%)
             chmask = reduced_chmask if pdr >= 0.7 else list(range(8))
-            # Set chmask if compatible
-            _ = cs_client.get_device_config_alignment(dev_eui)  # showcase
+            # Log current device configuration aligment
+            _ = cs_client.get_device_config_alignment(dev_eui)
+            # Check compatibility with installed channels
+            if not cs_client.is_chmask_compatible(chmask, dev_eui):
+                print(f"Configuration not compatible (chmask: {chmask})")
+                return
+            # Set chmask
+            time.sleep(2)
             cs_client.set_chmask_for_device(chmask, dev_eui)
 
             # Cleanup and disconnect after N messages
@@ -283,20 +289,18 @@ class ChirpStackClient:
         print(f"Dev EUIs: {dev_euis}")
         return dev_euis
 
-    def create_device_config(self, config_store: api.DeviceConfigStore) -> None:
+    def set_device_config(self, config_store: api.DeviceConfigStore) -> None:
         try:
-            self.config_store_api.Create(
-                api.CreateDeviceConfigStoreRequest(device_config_store=config_store),
+            self.config_store_api.Set(
+                api.SetDeviceConfigStoreRequest(device_config_store=config_store),
                 metadata=self.metadata,
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
-                # Trying to create c for non-existent device
+                # Trying to set config for non-existent device
                 print(f"ERROR: device not found (id: {config_store.dev_eui})")
-                return
-            else:
-                raise e
-        print(f"=> CreateDeviceConfigStore: {config_store}")
+            raise e
+        print(f"=> SetDeviceConfigStore: {config_store}")
 
     def get_device_config(self, dev_eui: str) -> api.DeviceConfigStore | None:
         try:
@@ -307,18 +311,10 @@ class ChirpStackClient:
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 print(f"GetDeviceConfigStore: NOT_FOUND")
-                return None
-            else:
-                raise e
+                return
+            raise e
         print(f"GetDeviceConfigStore: {resp.device_config_store}")
         return resp.device_config_store
-
-    def update_device_config(self, config_store: api.DeviceConfigStore) -> None:
-        self.config_store_api.Update(
-            api.UpdateDeviceConfigStoreRequest(device_config_store=config_store),
-            metadata=self.metadata,
-        )
-        print(f"=> UpdateDeviceConfigStore: {config_store}")
 
     def delete_device_config(self, dev_eui: str) -> None:
         try:
@@ -329,9 +325,9 @@ class ChirpStackClient:
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 # Silently continue
-                pass
-            else:
-                raise e
+                return
+            raise e
+        print(f"DeleteDeviceConfigStore: {dev_eui}")
 
     def list_configured_devices(self, application_id: str) -> list[str]:
         page = 0
@@ -348,44 +344,8 @@ class ChirpStackClient:
             if 100 * (page + 1) > resp.total_count:
                 break
             page += 1
-        print(f"Dev EUIs: {dev_euis}")
+        print(f"Dev EUIs with configs: {dev_euis}")
         return dev_euis
-
-    def chmask_is_compatible(self, chmask: list[int], dev_eui: str) -> bool:
-        # Check available uplink channels
-        resp: api.GetAvailableChannelsResponse = (
-            self.config_store_api.GetAvailableUplinkChannels(
-                api.GetAvailableChannelsRequest(dev_eui=dev_eui), metadata=self.metadata
-            )
-        )
-        # resp.channels is a MessageMap, to work with it see: https://googleapis.dev/python/protobuf/latest/google/protobuf/internal/containers.html#google.protobuf.internal.containers.MessageMap
-        uplink_channels = [k for k in resp.channels.keys()]
-        uplink_channels.sort()
-        print(f"GetAvailableChannels: {uplink_channels}")
-        # Verify configuration feasibility
-        if any((ch_id not in uplink_channels for ch_id in chmask)):
-            return False
-        return True
-
-    def set_chmask_for_device(self, chmask: list[int], dev_eui: str) -> None:
-        # Validate compatibility with installed channels
-        if not self.chmask_is_compatible(chmask, dev_eui):
-            print(f"Configuration not compatible (chmask: {chmask})")
-            return
-        # Create chmask c field
-        chmask_config = api.ChMaskConfig(enabled_uplink_channel_indices=chmask)
-        device_config_store = self.get_device_config(dev_eui)
-        if device_config_store is None:
-            # Create device c store from scratch
-            device_config_store = api.DeviceConfigStore(
-                dev_eui=dev_eui,
-                chmask_config=chmask_config,
-            )
-            self.create_device_config(device_config_store)
-        elif device_config_store.chmask_config.enabled_uplink_channel_indices != chmask:
-            # Update c store with new chmask field
-            device_config_store.chmask_config.CopyFrom(chmask_config)
-            self.update_device_config(device_config_store)
 
     def get_device_config_alignment(self, dev_eui: str) -> api.ConfigStoreAlignment:
         try:
@@ -400,12 +360,49 @@ class ChirpStackClient:
                 print(f"GetConfigStoreAlignment: NOT_FOUND")
                 # Defaults to True if no configs are present
                 return api.ConfigStoreAlignment(chmask_config=True)
-            else:
-                raise e
-        # see: https://stackoverflow.com/questions/61606095/false-boolean-is-not-showing-in-proto3-python
-        chmask_config = resp.alignment.chmask_config
-        print(f"GetConfigStoreAlignment: chmask_config: {chmask_config}")
+            raise e
+        # Prints nothing if false, see: https://stackoverflow.com/questions/61606095/false-boolean-is-not-showing-in-proto3-python
+        align_dict = MessageToDict(
+            resp.alignment, always_print_fields_with_no_presence=True
+        )
+        print(f"GetConfigStoreAlignment: {align_dict}")
         return resp.alignment
+
+    def get_device_available_uplink_channels(
+        self, chmask: list[int], dev_eui: str
+    ) -> list[int]:
+        # Check available uplink channels
+        resp: api.GetAvailableChannelsResponse = (
+            self.config_store_api.GetAvailableUplinkChannels(
+                api.GetAvailableChannelsRequest(dev_eui=dev_eui), metadata=self.metadata
+            )
+        )
+        # resp.channels is a MessageMap, to work with it see: https://googleapis.dev/python/protobuf/latest/google/protobuf/internal/containers.html#google.protobuf.internal.containers.MessageMap
+        uplink_channels = [k for k in resp.channels.keys()]
+        uplink_channels.sort()
+        print(f"GetAvailableChannels: {uplink_channels}")
+        return uplink_channels
+
+    def is_chmask_compatible(self, chmask: list[int], dev_eui: str) -> bool:
+        uplink_channels = self.get_device_available_uplink_channels(chmask, dev_eui)
+        # Verify configuration feasibility
+        if any((ch_id not in uplink_channels for ch_id in chmask)):
+            return False
+        return True
+
+    def set_chmask_for_device(self, chmask: list[int], dev_eui: str) -> None:
+        # Create chmask config field
+        self.set_device_config(
+            api.DeviceConfigStore(
+                dev_eui=dev_eui,
+                chmask_config=api.ChMaskConfig(
+                    enabled_uplink_channel_indices=chmask,
+                ),
+            )
+        )
+
+    def is_device_chmask_aligned(self, dev_eui: str) -> bool:
+        return self.get_device_config_alignment(dev_eui).chmask_config
 
 
 if __name__ == "__main__":

@@ -80,15 +80,18 @@ services:
       DOCKER_INFLUXDB_INIT_BUCKET: chirpstack
 
   config-server:
-    build: ./configuration/config-server/build
+    build: 
+      context: ./config-server
+      args: 
+        VERSION: v4.12.0+cs.3
     command: -c /etc/config-server
     restart: unless-stopped
     secrets: [chirpstack-api-token]
     environment: 
       CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
-      - ./configuration/config-server/config:/etc/config-server
-      - ./configuration/config-server/src:/usr/src/app
+      - ./configuration/config-server:/etc/config-server
+      - ./config-server/src:/usr/src/app
     depends_on:
       - chirpstack
       - influxdb2
