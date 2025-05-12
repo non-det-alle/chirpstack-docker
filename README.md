@@ -85,7 +85,7 @@ Generate ChirpStack API token by running in the repo's root:
 docker compose up chirpstack -d && sleep 1 && docker compose run --rm chirpstack -c /etc/chirpstack create-api-key --name config-store | sed -n 's/^token: //p' > .env.chirpstack-api-token && docker compose down
 ```
 
-This command runs a temporary ChirpStack instance, instantiating a volume used by ChirpStack for persistent storage. This allows us to then generate an API key that will remain valid the next time you run the infrastructure. In case of problems, you can do a full restore by running `docker compose --profile full down` followed by `docker volume rm chirpstack-docker_postgresqldata` to delete persistent storage; just run again the above command to create a new API token.
+This command runs a temporary ChirpStack instance, instantiating a volume used by ChirpStack for persistent storage. This allows us to then generate an API key that will remain valid the next time you run the infrastructure. In case of problems, you can do a full restore by running `docker compose --profile all down` followed by `docker volume rm chirpstack-docker_postgresqldata` to delete persistent storage; just run again the above command to create a new API token.
 
 ## Running
 
@@ -105,14 +105,14 @@ Now you can:
 * `docker compose up elora`: In a second terminal, run the emulated access network using ELoRa
 * `docker compose up config-server`: In a third terminal, run the configuration server
 
-To stop `elora` or the `config-server`, simply `Ctrl-C` in the windows. If anything breaks (*let us know!*) run `docker compose --profile full down` to remove all containers and start from scratch.
+To stop `elora` or the `config-server`, simply `Ctrl-C` in the windows. If anything breaks (*let us know!*) run `docker compose --profile all down` to remove all containers and start from scratch.
 
 ### More options
 
 Run the full infrastructure demo in one go with ELoRa for traffic generation:
 
 ```sh
-docker compose --profile full up -d
+docker compose --profile all up -d
 ```
 
 Then, follow specific logs with:
