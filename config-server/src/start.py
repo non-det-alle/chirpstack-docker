@@ -170,7 +170,7 @@ def main():
                 print(f"Configuration not compatible (chmask: {chmask})")
                 return
             # Set chmask
-            time.sleep(2)
+            time.sleep(2)  # comment out for immediate chmask configuration
             cs_client.set_chmask_for_device(chmask, dev_eui)
 
             # Cleanup and disconnect after N messages

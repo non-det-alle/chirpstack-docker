@@ -1,9 +1,9 @@
 # A distributed control loop infrastructure for dynamic LoRaWAN management
 
-From [`configuration/config-server/start.py`](configuration/config-server/start.py):
+From [`config-server/src/start.py`](config-server/src/start.py):
 
 ```text
-        CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM
+            CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM                
 
                        _________________                  _________________
                       |                 |  [3] past      |                 |
@@ -16,7 +16,7 @@ From [`configuration/config-server/start.py`](configuration/config-server/start.
              metrics /         state & \ \    configs   /        metrics
                     /          configs  \ \            /
                    /                     \ \          /
-                  /                       \ ⌄        /
+                  /                       \ v        /
        _____________                    ________________
       |             |   [1] uplink     |                |
       |             | ---------------> |                |
@@ -73,10 +73,10 @@ From [`configuration/config-server/start.py`](configuration/config-server/start.
 
 Make sure you have docker and docker-compose installed. This implementation can be run fully inside docker if you have any problem with networking on your machine (exposing ports on localhost, etc.)
 
-Clone the repo *recursively*, especially if you intend to rebuild the `config-server` container after implementing a new management algorithm:
+Clone the repo:
 
 ```sh
-git clone --recurse-submodules https://github.com/non-det-alle/chirpstack-docker.git
+git clone https://github.com/non-det-alle/chirpstack-docker.git
 ```
 
 Generate ChirpStack API token by running in the repo's root:
@@ -85,7 +85,7 @@ Generate ChirpStack API token by running in the repo's root:
 docker compose up chirpstack -d && sleep 1 && docker compose run --rm chirpstack -c /etc/chirpstack create-api-key --name config-store | sed -n 's/^token: //p' > .env.chirpstack-api-token && docker compose down
 ```
 
-This command runs a temporary ChirpStack instance, instantiating a volume used by ChirpStack for persistent storage. This allows us to then generate an API key that will remain valid the next time you run the infrastructure.
+This command runs a temporary ChirpStack instance, instantiating a volume used by ChirpStack for persistent storage. This allows us to then generate an API key that will remain valid the next time you run the infrastructure. In case of problems, you can do a full restore by running `docker compose --profile full down` followed by `docker volume rm chirpstack-docker_postgresqldata` to delete persistent storage; just run again the above command to create a new API token.
 
 ## Running
 
@@ -125,11 +125,12 @@ where `SERVICE` is the name specified in [`docker-compose.yml`](docker-compose.y
 
 ## Development
 
-Implement your algorithm and other changes in [`configuration/config-server/src`](configuration/config-server/src). You can find the source for this demo in the file `start.py`. The `src` directory is loaded as a shared volume in the container, so changes can be loaded by simply runnning `docker compose up config-server` again. Changing language will require you to write your own `Dockerfile` to build the container environment.
+Implement your algorithm and other changes in [`config-server/src`](config-server/src). You can find the source for this demo in the file `start.py`. The `src` directory is loaded as a shared volume in the container, so changes can be loaded by simply runnning `docker compose up config-server` again. Changing language will require you to write your own `Dockerfile` to build the container environment.
 
 ## More documentation
 
-* chirpstack gRPC API: [configuration/config-server/chirpstack/api/proto](configuration/config-server/chirpstack/api/proto) (after git clone --recurse-submodules)
+* this config-server API example: [docs/API.md](docs/API.md)
+* chirpstack gRPC API: <https://github.com/non-det-alle/chirpstack/tree/config-store/api/proto>
 * chirpstack-docker: <https://github.com/chirpstack/chirpstack-docker>
 * elora: <https://github.com/Orange-OpenSource/elora>
 * ns-3: <https://www.nsnam.org/docs/release/3.43/tutorial/html/index.html>
