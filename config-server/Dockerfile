@@ -1,21 +1,22 @@
 FROM python:3.11.0 AS builder
 
-ARG VERSION
+ARG API_VERSION
 
-RUN git clone --depth=1 https://github.com/protocolbuffers/protobuf.git /protobuf
-RUN git clone --depth=1 https://github.com/googleapis/googleapis.git /googleapis
-
-RUN git clone --depth=1 -b $VERSION https://github.com/non-det-alle/chirpstack.git /chirpstack
+RUN git clone --depth=1 -b $API_VERSION https://github.com/non-det-alle/chirpstack.git /chirpstack
 RUN cd /chirpstack/api/python && make all
+
+RUN python3 -c "import google.protobuf as pb; print(f'protobuf=={pb.__version__}')" > /protobuf.txt
 
 FROM python:alpine
 
 COPY --from=builder /chirpstack/api/python/src /chirpstack_api
-COPY requirements.txt ./
+COPY --from=builder /protobuf.txt /
+COPY requirements.txt /
 
 RUN apk add --no-cache tini && \
-    pip install --no-cache-dir /chirpstack_api && \
-    pip install --no-cache-dir -r requirements.txt
+    cat /protobuf.txt >> /requirements.txt && \
+    pip install --no-cache-dir -r /requirements.txt && \
+    pip install --no-cache-dir /chirpstack_api
 
 WORKDIR /usr/src/app
 

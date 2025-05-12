@@ -83,7 +83,7 @@ services:
     build: 
       context: ./config-server
       args: 
-        VERSION: v4.12.1+cs.3
+        API_VERSION: v4.12.1+cs.3
     command: -c /etc/config-server
     restart: unless-stopped
     secrets: [chirpstack-api-token]
@@ -95,7 +95,7 @@ services:
     depends_on:
       - chirpstack
       - influxdb2
-    profiles: ["config-server", "full"]
+    profiles: ["all"]
 
   elora:
     image: nondetalle/elora:latest
@@ -111,7 +111,7 @@ services:
       - chirpstack-rest-api
       - chirpstack-gateway-bridge
       - influxdb2
-    profiles: ["elora", "full"]
+    profiles: ["all"]
 
 secrets:
   chirpstack-api-token:
