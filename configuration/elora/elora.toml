@@ -84,8 +84,8 @@ initSF = true
 # Whether to enable the ADR bit 
 adr = true
 
-# Use test devices (5s period, 5B payload) instead of realistic urban M2M traffic
-test = true
+# Use realistic urban M2M traffic instead of test devices (5s period, 5B payload) 
+real = false
 
 # Whether to enable .pcap tracing on gateways
 file = false

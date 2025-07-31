@@ -34,7 +34,7 @@ using namespace lorawan;
 NS_LOG_COMPONENT_DEFINE("EloraExample");
 
 /* Global declaration of connection helper for signal handling */
-ChirpstackHelper csHelper;
+ChirpStackHelper csHelper;
 
 int
 main(int argc, char* argv[])
@@ -55,18 +55,18 @@ main(int argc, char* argv[])
     int nDevices = 1;
     std::string sir = "CROCE";
     bool initializeSF = true;
-    bool testDev = false;
+    bool real = false;
     bool file = false; // Warning: will produce a file for each gateway
     bool log = false;
 
     /* Expose parameters to command line */
     {
         CommandLine cmd(__FILE__);
-        cmd.AddValue("tenant", "Chirpstack tenant name of this simulation", tenant);
-        cmd.AddValue("apiAddr", "Chirpstack REST API endpoint IP address", apiAddr);
-        cmd.AddValue("apiPort", "Chirpstack REST API endpoint IP address", apiPort);
-        cmd.AddValue("token", "Chirpstack API token (to be generated in Chirpstack UI)", token);
-        cmd.AddValue("destPort", "Port used by the Chirpstack Gateway Bridge", destPort);
+        cmd.AddValue("tenant", "ChirpStack tenant name of this simulation", tenant);
+        cmd.AddValue("apiAddr", "ChirpStack REST API endpoint IP address", apiAddr);
+        cmd.AddValue("apiPort", "ChirpStack REST API endpoint IP address", apiPort);
+        cmd.AddValue("token", "ChirpStack API token (to be generated in ChirpStack UI)", token);
+        cmd.AddValue("destPort", "Port used by the ChirpStack Gateway Bridge", destPort);
         cmd.AddValue("periods", "Number of periods to simulate (1 period = 1 hour)", periods);
         cmd.AddValue("rings", "Number of gateway rings in hexagonal topology", gatewayRings);
         cmd.AddValue("range", "Radius of the device allocation disk around a gateway)", range);
@@ -74,7 +74,7 @@ main(int argc, char* argv[])
         cmd.AddValue("sir", "Signal to Interference Ratio matrix used for interference", sir);
         cmd.AddValue("initSF", "Whether to initialize the SFs", initializeSF);
         cmd.AddValue("adr", "ns3::BaseEndDeviceLorawanMac::ADRBit");
-        cmd.AddValue("test", "Use test devices (5s period, 5B payload)", testDev);
+        cmd.AddValue("real", "Use realistic traffic [IEEE C802.16p-11/0102r2]", real);
         cmd.AddValue("file", "Whether to enable .pcap tracing on gateways", file);
         cmd.AddValue("log", "Whether to enable logs", log);
         cmd.Parse(argc, argv);
@@ -102,7 +102,8 @@ main(int argc, char* argv[])
     {
         //!> Requirement: build ns3 with debug option
         LogComponentEnable("UdpForwarder", LOG_LEVEL_DEBUG);
-        // LogComponentEnable("ChirpstackHelper", LOG_LEVEL_DEBUG);
+        // LogComponentEnable("ChirpStackHelper", LOG_LEVEL_DEBUG);
+        // LogComponentEnable("RestApiHelper", LOG_LEVEL_DEBUG);
         LogComponentEnable("ClassAEndDeviceLorawanMac", LOG_LEVEL_INFO);
         LogComponentEnable("BaseEndDeviceLorawanMac", LOG_LEVEL_INFO);
         // LogComponentEnable ("LoraFrameHeader", LOG_LEVEL_INFO);
@@ -263,7 +264,7 @@ main(int argc, char* argv[])
         forwarderHelper.Install(gateways);
 
         // Install applications in EDs
-        if (testDev)
+        if (!real)
         {
             PeriodicSenderHelper appHelper;
             appHelper.SetPeriodGenerator(
