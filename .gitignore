@@ -5,3 +5,7 @@
 # data folder
 /data
 /lorawan-devices
+
+# python stuff
+.venv
+__pycache__
