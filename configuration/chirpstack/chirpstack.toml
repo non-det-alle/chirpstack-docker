@@ -103,4 +103,4 @@
 
   [integration.mqtt]
     server="tcp://$MQTT_BROKER_HOST:1883/"
-    json=true
+    json=false
