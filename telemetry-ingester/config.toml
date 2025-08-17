@@ -1,0 +1,27 @@
+# MQTT broker for event polling
+[mosquitto]
+
+# The endpoint of ChirpStack's MQTT broker
+endpoint = "localhost:1883"
+
+# MQTT subscription topic(s)
+# https://www.chirpstack.io/docs/chirpstack/integrations/mqtt.html
+topics = "application/#"
+
+# The MQTT QoS to use when subscribing
+qos = 2
+
+# Time-series database for the metrics collection system
+[influxdb]
+
+# The endpoint of your InfluxDB instance
+endpoint = "localhost:8086"
+
+# InfluxDB authentication token
+token = "token"
+
+# InfluxDB organization
+org = "cnam"
+
+# InfluxDB bucket where data is stored
+bucket = "chirpstack"

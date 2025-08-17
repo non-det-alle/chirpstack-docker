@@ -268,7 +268,7 @@ main(int argc, char* argv[])
         {
             PeriodicSenderHelper appHelper;
             appHelper.SetPeriodGenerator(
-                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
+                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(60.0)));
             appHelper.SetPacketSizeGenerator(
                 CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
             appHelper.Install(endDevices);
@@ -295,10 +295,6 @@ main(int argc, char* argv[])
     csHelper.SetTenant(tenant);
     csHelper.InitConnection(apiAddr, apiPort, token);
     csHelper.Register(NodeContainer(endDevices, gateways));
-    csHelper.CreateInfluxDb2Integration("http://influxdb2:8086/api/v2/write",
-                                        "cnam",
-                                        "chirpstack",
-                                        "token");
 
     // Initialize SF emulating the ADR algorithm, then add variance to path loss
     std::vector<int> devPerSF(1, nDevices);
