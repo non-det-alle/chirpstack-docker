@@ -15,7 +15,7 @@ qos = 2
 [influxdb]
 
 # The endpoint of your InfluxDB instance
-endpoint = "influxdb2:8086"
+endpoint = "influxdb:8086"
 
 # InfluxDB authentication token
 token = "token"

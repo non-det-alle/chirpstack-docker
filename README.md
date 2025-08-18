@@ -8,7 +8,7 @@ From [`config-server/src/start.py`](config-server/src/start.py):
                        _________________                  _________________
                       |                 |  [3] past      |                 |
                       |  Config Server  |      metrics   | Metrics Storage |
-                      |     (this)      | <------------- |   (influxdb2)   |
+                      |     (this)      | <------------- |    (influxdb)   |
                       |_________________|                |_________________|
                         ^           ^ \                    ^
                        /             \ \                  /
@@ -47,9 +47,9 @@ From [`config-server/src/start.py`](config-server/src/start.py):
      ChirpStack by the MQTT broker.
  [2] uplink metrics: message metadata being distpatched by ChirpStack to the
      Config Server (via MQTT topic subscription [2.a]) and to the Metrics
-     Storage (via InfluxDB2 REST API [2.b]).
+     Storage (via InfluxDB REST API [2.b]).
  [3] past metrics: past uplink records and metrics being queried by the Config
-     Server (using the InfluxDB2 REST API and the Flux query language).
+     Server (using the InfluxDB REST API and the Flux query language).
      Metrics aggregation can happen either in the Storage using Flux queries,
      or directly in the Config Server (less optimal in distributed settings).
  [4] device state & configs: known parameter state of the device and current
