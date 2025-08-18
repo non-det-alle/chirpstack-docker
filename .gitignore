@@ -9,3 +9,6 @@
 # python stuff
 .venv
 __pycache__
+
+# not .dockerignore
+!.dockerignore

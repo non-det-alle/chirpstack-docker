@@ -66,6 +66,18 @@ services:
     volumes: 
       - ./configuration/mosquitto/config/:/mosquitto/config/
 
+  telemetry-ingester:
+    build:
+      context: ./telemetry-ingester
+      args: 
+        API_VERSION: v4.12.1+cs.3
+    command: -c /etc/telemetry-ingester
+    volumes:
+      - ./configuration/telemetry-ingester:/etc/telemetry-ingester
+    depends_on:
+      - chirpstack
+      - influxdb2
+
   influxdb2:
     image: influxdb:2.7
     restart: unless-stopped
@@ -110,7 +122,6 @@ services:
     depends_on:
       - chirpstack-rest-api
       - chirpstack-gateway-bridge
-      - influxdb2
     profiles: ["all"]
 
 secrets:
