@@ -1,7 +1,7 @@
 # ChirpStack API imports
 from chirpstack_client import ChirpStackClient
 
-# InfluxDB2 API imports
+# InfluxDB API imports
 from influxdb_client_wrapper import InfluxDBClientWrapper
 
 # MQTT subcriber imports
@@ -21,7 +21,7 @@ import os
 #                       _________________                  _________________
 #                      |                 |  [3] past      |                 |
 #                      |  Config Server  |      metrics   | Metrics Storage |
-#                      |     (this)      | <------------- |   (influxdb2)   |
+#                      |     (this)      | <------------- |    (influxdb)   |
 #                      |_________________|                |_________________|
 #                        ^           ^ \                    ^
 #                       /             \ \                  /
@@ -60,9 +60,9 @@ import os
 #     ChirpStack by the MQTT broker.
 # [2] uplink metrics: message metadata being distpatched by ChirpStack to the
 #     Config Server (via MQTT topic subscription [2.a]) and to the Metrics
-#     Storage (via InfluxDB2 REST API [2.b]).
+#     Storage (via InfluxDB REST API [2.b]).
 # [3] past metrics: past uplink records and metrics being queried by the Config
-#     Server (using the InfluxDB2 REST API and the Flux query language).
+#     Server (using the InfluxDB REST API and the Flux query language).
 #     Metrics aggregation can happen either in the Storage using Flux queries,
 #     or directly in the Config Server (less optimal in distributed settings).
 # [4] device state & configs: known parameter state of the device and current
@@ -89,7 +89,7 @@ def main():
     c = toml.load(sys.argv[2] + "/config-server.toml")
 
     # Unpack network configs
-    c["influxdb2"]["url"] = "http://" + c["influxdb2"]["endpoint"]
+    c["influxdb"]["url"] = "http://" + c["influxdb"]["endpoint"]
     c["mosquitto"]["hostname"] = c["mosquitto"]["endpoint"].split(":")[0]
     c["mosquitto"]["port"] = c["mosquitto"]["endpoint"].split(":")[1]
     with open(os.environ["CHIRPSTACK_API_TOKEN_FILE"], "r") as f:
@@ -109,10 +109,10 @@ def main():
         c["chirpstack"]["endpoint"],
         c["chirpstack"]["api_token"],
     ) as cs_client, InfluxDBClientWrapper(
-        c["influxdb2"]["url"],
-        c["influxdb2"]["token"],
-        c["influxdb2"]["org"],
-        c["influxdb2"]["bucket"],
+        c["influxdb"]["url"],
+        c["influxdb"]["token"],
+        c["influxdb"]["org"],
+        c["influxdb"]["bucket"],
     ) as db_client:
         while True:
             try:

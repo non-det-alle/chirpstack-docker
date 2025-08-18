@@ -76,9 +76,9 @@ services:
       - ./configuration/telemetry-ingester:/etc/telemetry-ingester
     depends_on:
       - chirpstack
-      - influxdb2
+      - influxdb
 
-  influxdb2:
+  influxdb:
     image: influxdb:2.7
     restart: unless-stopped
     ports:
@@ -106,7 +106,7 @@ services:
       - ./config-server/src:/usr/src/app
     depends_on:
       - chirpstack
-      - influxdb2
+      - influxdb
     profiles: ["all"]
 
   elora:
