@@ -5,6 +5,8 @@ class Config:
     def load(self, path: str):
         c = toml.load(path + "/config.toml")
 
+        self.LOG_LEVEL = c["log"]
+
         mosquitto = c["mosquitto"]
         self.MOSQUITTO_HOSTNAME = mosquitto["endpoint"].split(":")[0]
         self.MOSQUITTO_PORT = int(mosquitto["endpoint"].split(":")[1])

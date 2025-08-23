@@ -1,3 +1,6 @@
+# Log level: ERROR, WARNING, INFO, DEBUG
+log = "INFO"
+
 # MQTT broker for event polling
 [mosquitto]
 
