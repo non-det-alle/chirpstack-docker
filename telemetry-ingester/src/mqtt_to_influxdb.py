@@ -20,14 +20,15 @@ def _on_connect(client, userdata, flags, reason_code, properties):
 
 def _on_message(client, userdata, message):
     try:
+        logger.debug(f'Received MQTT message for "{message.topic}"')
         event = message.topic.split("/")[-1]
         assert event in CHIRPSTACK_EVENTS  # otherwise update events module
         data = unmarshal_event_to_dict(message.payload, event)
-        logger.debug(f'Received MQTT message from "{message.topic}": {data}')
+        logger.debug(f"Unmarshaled event data: {data}")
         try:
             records = format_event_data_to_records(data, event)
         except MissingHandlerError as e:
-            logger.warning(f'Handler for event {e} not implemented: {data}')
+            logger.warning(f"Format handler not implemented for event {e}")
             return
         userdata["influxdb_write"](records)
     except Exception as e:
@@ -77,6 +78,8 @@ def main():
         return 1
 
     settings.load(sys.argv[2])
+    logger.setLevel(settings.LOG_LEVEL)
+
     ingester = MQTTToInfluxDB()
     ingester.connect()
     ingester.loop_forever()
