@@ -2,7 +2,7 @@ import sys, time, os
 import paho.mqtt.client as paho
 from paho.mqtt.enums import CallbackAPIVersion
 
-from src.events import CHIRPSTACK_EVENTS, unmarshal_event_to_dict
+from src.unmarshaling import CHIRPSTACK_EVENTS, unmarshal_mqtt_event_to_dict
 from src.formatter import format_event_data_to_records, MissingHandlerError
 from src.influxdb_writer import InfluxDBWriter
 from src.config import settings
@@ -23,7 +23,7 @@ def _on_message(client, userdata, message):
         logger.debug(f'Received MQTT message for "{message.topic}"')
         event = message.topic.split("/")[-1]
         assert event in CHIRPSTACK_EVENTS  # otherwise update events module
-        data = unmarshal_event_to_dict(message.payload, event)
+        data = unmarshal_mqtt_event_to_dict(message.payload, event)
         logger.debug(f"Unmarshaled event data: {data}")
         try:
             records = format_event_data_to_records(data, event)
