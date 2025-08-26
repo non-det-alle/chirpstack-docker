@@ -13,7 +13,7 @@ CHIRPSTACK_EVENTS = {
 }
 
 
-def unmarshal_event_to_dict(payload: bytes, event: str) -> dict:
+def unmarshal_mqtt_event_to_dict(payload: bytes, event: str) -> dict:
     protobuf_message = CHIRPSTACK_EVENTS[event]()
     protobuf_message.ParseFromString(payload)
     return MessageToDict(
