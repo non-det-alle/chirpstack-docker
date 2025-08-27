@@ -3,7 +3,7 @@ import paho.mqtt.client as paho
 from paho.mqtt.enums import CallbackAPIVersion
 
 from src.unmarshaling import CHIRPSTACK_EVENTS, unmarshal_mqtt_event_to_dict
-from src.formatter import format_event_data_to_records, MissingHandlerError
+from src.formatting import format_event_data_to_records, MissingHandlerError
 from src.influxdb_writer import InfluxDBWriter
 from src.config import settings
 from src.logger import logger
