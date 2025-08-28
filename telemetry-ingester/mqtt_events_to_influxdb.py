@@ -1,11 +1,11 @@
 import sys
 import os
 
-from .mqtt_event_reader import MQTTEventReader
-from .formatting import EventToRecordsFormatter
-from .influxdb_writer import InfluxDBWriter
-from .config import settings
-from .logger import logger
+from src.mqtt_event_reader import MQTTEventReader
+from src.formatting import EventToRecordsFormatter
+from src.influxdb_writer import InfluxDBWriter
+from src.config import settings
+from src.logger import logger
 
 
 def main():
@@ -20,8 +20,8 @@ def main():
     def run():
         with InfluxDBWriter() as writer:
             with EventToRecordsFormatter(writer.write) as formatter:
-                with MQTTEventReader(formatter.format) as service:
-                    service.loop_forever()
+                with MQTTEventReader(formatter.format) as reader:
+                    reader.loop_forever()
 
     try:
         run()

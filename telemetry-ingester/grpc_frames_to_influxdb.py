@@ -2,12 +2,12 @@ import os
 import sys
 import asyncio
 
-from .discovery_service import MQTTDiscoveryService
-from .grpc_frame_reader import GRPCDeviceFrameLogInfoReader
-from .formatting import FrameLogItemToRecordsFormatter
-from .influxdb_writer import InfluxDBWriterAsync
-from .config import settings
-from .logger import logger
+from src.discovery_service import MQTTDiscoveryService
+from src.grpc_frame_reader import GRPCDeviceFrameLogInfoReader
+from src.formatting import FrameLogItemToRecordsFormatter
+from src.influxdb_writer import InfluxDBWriterAsync
+from src.config import settings
+from src.logger import logger
 
 
 def main():
