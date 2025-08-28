@@ -1,8 +1,9 @@
-from influxdb_client import InfluxDBClient, Point
+from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.write.point import Point
 
-from src.logger import logger
-from src.config import settings
+from .logger import logger
+from .config import settings
 
 
 class InfluxDBWriter:
