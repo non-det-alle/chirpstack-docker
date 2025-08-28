@@ -5,73 +5,71 @@ import os
 import paho.mqtt.client as paho
 from paho.mqtt.enums import CallbackAPIVersion
 
-from .unmarshaling import CHIRPSTACK_EVENTS, unmarshal_mqtt_event_to_dict
-from .formatting import format_event_data_to_records, MissingHandlerError
+from .unmarshaling import unmarshal_mqtt_event_to_dict
 from .influxdb_writer import InfluxDBWriter
+from .formatting import event_to_records
 from .config import settings
 from .logger import logger
 
 
-def _on_connect(client, userdata, flags, reason_code, properties):
-    if reason_code != 0:
-        logger.error(f"Failed to connect: {paho.connack_string(reason_code)}")
-        return
-    topics, qos = settings.MOSQUITTO_TOPICS, settings.MOSQUITTO_QOS
-    logger.info(f'Connected to MQTT broker. Subscribing to "{topics}"')
-    client.subscribe(topics, qos)
-
-
-def _on_message(client, userdata, message):
-    try:
-        logger.debug(f'Received MQTT message for "{message.topic}"')
-        event = message.topic.split("/")[-1]
-        assert event in CHIRPSTACK_EVENTS  # otherwise update events module
-        data = unmarshal_mqtt_event_to_dict(message.payload, event)
-        logger.debug(f"Unmarshaled event data: {data}")
-        try:
-            records = format_event_data_to_records(data, event)
-        except MissingHandlerError as e:
-            logger.warning(f"Format handler not implemented for event {e}")
-            return
-        userdata["influxdb_write"](records)
-    except Exception as e:
-        logger.exception(f"Error processing MQTT message: {e}")
-
-
-def _on_disconnect(client, userdata, flags, reason_code, properties):
-    logger.info("Disconnected from MQTT broker.")
-    if reason_code != 0:
-        logger.warning("Unexpected disconnect. Reconnecting in 5s...")
-        time.sleep(5)
-        userdata["reconnect"]()
-
-
 class MQTTToInfluxDB:
     def __init__(self):
-        self.client = paho.Client(CallbackAPIVersion.VERSION2, clean_session=True)
-        self.client.enable_logger(logger)
-        self.influxdb = InfluxDBWriter()
+        self._hostname = settings.MOSQUITTO_HOSTNAME
+        self._port = settings.MOSQUITTO_PORT
+        self._topics = settings.MOSQUITTO_TOPICS
+        self._qos = settings.MOSQUITTO_QOS
+
+        self._client = paho.Client(CallbackAPIVersion.VERSION2)
+        self._influxdb = InfluxDBWriter()
+
         self._setup_callbacks()
+        self._client.enable_logger(logger)
+        self._client.connect_async(self._hostname, self._port)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self._influxdb.close()
+        self.close()
+
+    def close(self):
+        self._client.disconnect()
 
     def _setup_callbacks(self):
-        self.client.on_connect = _on_connect
-        self.client.on_message = _on_message
-        self.client.on_disconnect = _on_disconnect
+        def on_connect(client, userdata, flags, rc, properties):
+            if rc != 0:
+                err = paho.connack_string(rc)
+                logger.error(f"Connection failure: {err}")
+                return
+            logger.info(f"Connection success. Subscribing to {self._topics}")
+            client.subscribe(self._topics, self._qos)
 
-        stateful = {"influxdb_write": self.influxdb.write, "reconnect": self.connect}
-        self.client.user_data_set(stateful)
+        def on_message(client, userdata, message):
+            try:
+                logger.debug(f"MQTT message on topic {message.topic}")
+                event_type = message.topic.split("/")[-1]
+                
+                data = unmarshal_mqtt_event_to_dict(message.payload, event_type)
+                logger.debug(f"Unmarshaled event data: {data}")
+                records = event_to_records(data, event_type)
+                self._influxdb.write(records)
+            except Exception as e:
+                logger.error(f"Error processing MQTT message: {e}")
 
-    def connect(self):
-        hostname, port = settings.MOSQUITTO_HOSTNAME, settings.MOSQUITTO_PORT
-        logger.info(f'Connecting to MQTT broker at "{hostname}:{port}"...')
-        self.client.connect(hostname, port, keepalive=60)
+        def on_disconnect(client, userdata, flags, rc, properties):
+            if rc != 0:
+                err = paho.error_string(rc)
+                logger.error(f"Unexpected MQTT disconnect: {err} Reconnecting...")
+
+        self._client.on_connect = on_connect
+        self._client.on_message = on_message
+        self._client.on_disconnect = on_disconnect
 
     def loop_forever(self):
-        try:
-            self.client.loop_forever()
-        except KeyboardInterrupt:
-            logger.info("Service interrupted. Shutting down...")
-            self.client.disconnect()
+        endpoint = f"{self._hostname}:{self._port}"
+        logger.info(f"Connecting to MQTT broker at {endpoint}")
+        self._client.loop_forever()
 
 
 def main():
@@ -83,9 +81,11 @@ def main():
     settings.load(sys.argv[2])
     logger.setLevel(settings.LOG_LEVEL)
 
-    ingester = MQTTToInfluxDB()
-    ingester.connect()
-    ingester.loop_forever()
+    with MQTTToInfluxDB() as ingester:
+        try:
+            ingester.loop_forever()
+        except KeyboardInterrupt:
+            logger.info("Service interrupted. Shutting down...")
 
 
 if __name__ == "__main__":
