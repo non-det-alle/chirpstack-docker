@@ -1,6 +1,12 @@
 # Log level: ERROR, WARNING, INFO, DEBUG
 log = "INFO"
 
+# LoRaWAN network server to source frame logs
+[chirpstack]
+
+# This must point to ChirpStack's gRPC API interface.
+endpoint = "localhost:8080"
+
 # MQTT broker for event polling
 [mosquitto]
 

@@ -1,11 +1,21 @@
+import os
+
 import toml
 
 
 class Config:
+    # static configurations
+    with open(os.environ["CHIRPSTACK_API_TOKEN_FILE"], "r") as f:
+        CHIRPSTACK_TOKEN = f.readline().rstrip("\n")
+
+    # runtime configurations
     def load(self, path: str):
         c = toml.load(path + "/config.toml")
 
         self.LOG_LEVEL = c["log"]
+
+        chirpstack = c["chirpstack"]
+        self.CHIRPSTACK_ENDPOINT = chirpstack["endpoint"]
 
         mosquitto = c["mosquitto"]
         self.MOSQUITTO_HOSTNAME = mosquitto["endpoint"].split(":")[0]
