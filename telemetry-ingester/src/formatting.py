@@ -66,6 +66,24 @@ def on_uplink_event(up: dict) -> list[dict]:
     return points
 
 
+class EventToRecordsFormatter:
+    def __init__(self, on_format):
+        self._on_format = on_format
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+    def format(self, data: dict, event_type: str):
+        try:
+            records = event_to_records(data, event_type)
+            self._on_format(records)
+        except Exception as e:
+            logger.error(f"Formatting error: {e}")
+
+
 def frame_log_item_to_records(data: dict) -> list[dict]:
     data["body"] = json.loads(data["body"])  # deserialize body
     return _deserialized_frame_log_item_to_records(data)
@@ -140,7 +158,7 @@ def _apply_common_frame_log_item_formatting(data: dict) -> dict:
     return data
 
 
-class FrameToRecordFormatter:
+class FrameLogItemToRecordsFormatter:
     def __init__(self, on_format):
         self._on_format = on_format
 

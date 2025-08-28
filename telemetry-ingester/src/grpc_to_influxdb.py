@@ -3,8 +3,8 @@ import sys
 import asyncio
 
 from .discovery_service import MQTTDiscoveryService
-from .grpc_stream_reader import GRPCDeviceFrameReader
-from .formatting import FrameToRecordFormatter
+from .grpc_frame_reader import GRPCDeviceFrameLogInfoReader
+from .formatting import FrameLogItemToRecordsFormatter
 from .influxdb_writer import InfluxDBWriterAsync
 from .config import settings
 from .logger import logger
@@ -21,8 +21,8 @@ def main():
 
     async def run():
         async with InfluxDBWriterAsync() as writer:
-            with FrameToRecordFormatter(writer.write) as formatter:
-                async with GRPCDeviceFrameReader(formatter.format) as reader:
+            with FrameLogItemToRecordsFormatter(writer.write) as formatter:
+                async with GRPCDeviceFrameLogInfoReader(formatter.format) as reader:
                     with MQTTDiscoveryService(reader.read_forever) as service:
                         await service.start()
 

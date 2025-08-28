@@ -9,7 +9,7 @@ from .config import settings
 from .logger import logger
 
 
-class GRPCDeviceFrameReader:
+class GRPCDeviceFrameLogInfoReader:
     def __init__(self, on_read):
         self._endpoint = settings.CHIRPSTACK_ENDPOINT
         self._token = settings.CHIRPSTACK_TOKEN
