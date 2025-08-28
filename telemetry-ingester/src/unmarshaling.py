@@ -12,9 +12,14 @@ CHIRPSTACK_EVENTS = {
     "integration": integration.IntegrationEvent,
 }
 
+UnknownEventType = KeyError
 
-def unmarshal_mqtt_event_to_dict(payload: bytes, event: str) -> dict:
-    protobuf_message = CHIRPSTACK_EVENTS[event]()
+
+def unmarshal_mqtt_event_to_dict(payload: bytes, event_type: str) -> dict:
+    try:
+        protobuf_message = CHIRPSTACK_EVENTS[event_type]()
+    except KeyError as e:
+        raise UnknownEventType(f"Unknown ChirpStack event type: {e}")
     protobuf_message.ParseFromString(payload)
     return MessageToDict(
         protobuf_message,
