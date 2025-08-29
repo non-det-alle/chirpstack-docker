@@ -30,13 +30,13 @@ class GRPCDeviceFrameLogInfoReader:
     async def close(self):
         await self._channel.close()
 
-    def _get_device_frame_stream(self, dev_eui):
+    def _stream_device_frames(self, dev_eui):
         req = chirpstack_api.StreamDeviceFramesRequest(dev_eui=dev_eui)
         return self._internal_api.StreamDeviceFrames(req, metadata=self._metadata)
 
     async def read_forever(self, dev_eui):
         self._tracking[dev_eui] = (datetime.now(timezone.utc), np.uint64(0))
-        stream = self._get_device_frame_stream(dev_eui)
+        stream = self._stream_device_frames(dev_eui)
 
         def obsolete():
             last_seen, count = self._tracking[dev_eui]
