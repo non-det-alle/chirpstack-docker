@@ -9,7 +9,7 @@ from .config import settings
 from .logger import logger
 
 
-class GRPCDeviceFrameLogInfoReader:
+class GRPCStreamReader:
     def __init__(self, on_read):
         self._endpoint = settings.CHIRPSTACK_ENDPOINT
         self._token = settings.CHIRPSTACK_TOKEN
@@ -30,23 +30,33 @@ class GRPCDeviceFrameLogInfoReader:
     async def close(self):
         await self._channel.close()
 
-    def _stream_device_frames(self, dev_eui):
-        req = chirpstack_api.StreamDeviceFramesRequest(dev_eui=dev_eui)
-        return self._internal_api.StreamDeviceFrames(req, metadata=self._metadata)
+    async def gateway_frames(self, gateway_id):
+        req = chirpstack_api.StreamGatewayFramesRequest(gateway_id=gateway_id)
+        stream = self._internal_api.StreamGatewayFrames(req, metadata=self._metadata)
+        await self._read_forever(gateway_id, stream)
 
-    async def read_forever(self, dev_eui):
-        self._tracking[dev_eui] = (datetime.now(timezone.utc), np.uint64(0))
-        stream = self._stream_device_frames(dev_eui)
+    async def device_frames(self, dev_eui):
+        req = chirpstack_api.StreamDeviceFramesRequest(dev_eui=dev_eui)
+        stream = self._internal_api.StreamDeviceFrames(req, metadata=self._metadata)
+        await self._read_forever(dev_eui, stream)
+
+    async def device_events(self, dev_eui):
+        req = chirpstack_api.StreamDeviceEventsRequest(dev_eui=dev_eui)
+        stream = self._internal_api.StreamDeviceEvents(req, metadata=self._metadata)
+        await self._read_forever(dev_eui, stream)
+
+    async def _read_forever(self, id, stream):
+        self._tracking[id] = (datetime.now(timezone.utc), np.uint64(0))
 
         def obsolete():
-            last_seen, count = self._tracking[dev_eui]
+            last_seen, count = self._tracking[id]
             now, count = datetime.now(timezone.utc), count + 1
-            msg_time = datetime.fromisoformat(frame_log_item["time"])
+            msg_time = datetime.fromisoformat(log_item["time"])
             assert now > msg_time  # otherwise timezone issues?
             msg_age = now - msg_time
-            log_args = (dev_eui, count, now - last_seen, msg_age)
-            logger.debug("dev_eui={}, count={}, prev={}, age={}".format(*log_args))
-            self._tracking[dev_eui] = (now, count)
+            log_args = (id, count, now - last_seen, msg_age)
+            logger.debug("{}: count={}, prev={}, age={}".format(*log_args))
+            self._tracking[id] = (now, count)
             return msg_age > timedelta(seconds=1)
 
         while True:
@@ -54,9 +64,8 @@ class GRPCDeviceFrameLogInfoReader:
                 message = await stream.read()
             except grpc.aio.AioRpcError as e:
                 logger.error(f"gRPC error: {e.details()}")
-                self._tracking.pop(dev_eui, None)
+                self._tracking.pop(id, None)
                 break
-
-            frame_log_item = unmarshal_protobuf_message_to_dict(message)
+            log_item = unmarshal_protobuf_message_to_dict(message)
             if not obsolete():
-                await self._on_read(frame_log_item)
+                await self._on_read(log_item)
