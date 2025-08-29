@@ -2,7 +2,7 @@ import os
 import sys
 import asyncio
 
-from src.discovery_service import MQTTDiscoveryService
+from src.mqtt_discovery_service import MQTTDiscoveryService
 from src.grpc_frame_reader import GRPCDeviceFrameLogInfoReader
 from src.formatting import FrameLogItemToRecordsFormatter
 from src.influxdb_writer import InfluxDBWriterAsync
