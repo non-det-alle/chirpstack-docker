@@ -10,8 +10,8 @@ from src.logger import logger
 
 def main():
     if len(sys.argv) != 3 or sys.argv[1] != "-c":
-        file = os.path.basename(__file__).removesuffix(".py")
-        print(f"Usage: python -m src.{file} -c <path/to/config/dir>")
+        file = os.path.basename(__file__)
+        print(f"Usage: python {file} -c <path/to/config/dir>")
         return 1
 
     settings.load(sys.argv[2])
