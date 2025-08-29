@@ -178,4 +178,4 @@ class ClientAsync(Client):
                         self._easy_log(
                             MQTT_LOG_DEBUG, "Connection failed, retrying")
 
-        return rc
+        return rc # type: ignore
