@@ -56,11 +56,13 @@ class BaseGRPCStreamReader:
                 await self._on_read(log_item)
 
 
-class GRPCGatewayFramesReader(BaseGRPCStreamReader):
-    async def read(self, gateway_id):
-        req = chirpstack_api.StreamGatewayFramesRequest(gateway_id=gateway_id)
-        stream = self._internal_api.StreamGatewayFrames(req, metadata=self._metadata)
-        await self._read_forever(gateway_id, stream)
+### UNFORTUNATELY THIS DOES NOT INCLUDE DEV_EUI FOR UPLINKS
+
+# class GRPCGatewayFramesReader(BaseGRPCStreamReader):
+#     async def read(self, gateway_id):
+#         req = chirpstack_api.StreamGatewayFramesRequest(gateway_id=gateway_id)
+#         stream = self._internal_api.StreamGatewayFrames(req, metadata=self._metadata)
+#         await self._read_forever(gateway_id, stream)
 
 
 class GRPCDeviceFramesReader(BaseGRPCStreamReader):
