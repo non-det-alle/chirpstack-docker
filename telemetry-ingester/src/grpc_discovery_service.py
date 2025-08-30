@@ -22,7 +22,7 @@ def paginate(page_size=100):
     return decorator
 
 
-class GRPCDiscoveryService:
+class BaseGRPCDiscoveryService:
     def __init__(self, on_discovery):
         self._endpoint = settings.CHIRPSTACK_ENDPOINT
         self._token = settings.CHIRPSTACK_TOKEN
@@ -34,10 +34,6 @@ class GRPCDiscoveryService:
         self._main_task: asyncio.Task
         self._discovered = {}
 
-        self._tenant_api = chirpstack_api.TenantServiceStub(self._channel)
-        self._application_api = chirpstack_api.ApplicationServiceStub(self._channel)
-        self._device_api = chirpstack_api.DeviceServiceStub(self._channel)
-
     async def __aenter__(self):
         return self
 
@@ -46,6 +42,71 @@ class GRPCDiscoveryService:
 
     async def close(self):
         await self._channel.close()
+
+    def _register(self, id):
+        def unregister(_):
+            logger.info(f"Removing task for {id}")
+            self._discovered.pop(id, None)
+
+        logger.info(f"Registering task for {id}")
+        coroutine = self._on_discovery(id)
+        task = self._task_group.create_task(coroutine)  # run concurrently
+        task.add_done_callback(unregister)
+        self._discovered[id] = task
+
+    def _unregister(self, id):
+        self._discovered[id].cancel()
+
+    def _update_tasks(self, new):
+        removed = self._discovered.keys() - new
+        added = new - self._discovered.keys()
+        [self._unregister(id) for id in removed]
+        [self._register(id) for id in added]
+
+    async def _get_ids(self):
+        """Overridden in child classes"""
+        return set()
+
+    async def _loop_forever(self, poll_interval=30):
+        while True:
+            try:
+                current_ids = await self._get_ids()
+                self._update_tasks(current_ids)
+                await asyncio.sleep(poll_interval)
+            except Exception as e:
+                logger.exception(e)
+
+    async def start(self, poll_interval=30):
+        async with asyncio.TaskGroup() as tg:
+            self._task_group = tg
+            logger.info(f"Starting discovery service...")
+            coroutine = self._loop_forever(poll_interval)
+            self.main_task = tg.create_task(coroutine)
+
+
+class GRPCGatewayDiscoveryService(BaseGRPCDiscoveryService):
+    def __init__(self, on_discovery):
+        super().__init__(on_discovery)
+
+        self._gateway_api = chirpstack_api.GatewayServiceStub(self._channel)
+
+    @paginate()
+    async def _list_gateways(self, **kwargs):
+        req = chirpstack_api.ListGatewaysRequest(**kwargs)
+        return await self._gateway_api.List(req, metadata=self._metadata)
+
+    async def _get_ids(self):
+        gateways = (await self._list_gateways()).result
+        return {g.gateway_id for g in gateways}
+
+
+class GRPCDeviceDiscoveryService(BaseGRPCDiscoveryService):
+    def __init__(self, on_discovery):
+        super().__init__(on_discovery)
+
+        self._tenant_api = chirpstack_api.TenantServiceStub(self._channel)
+        self._application_api = chirpstack_api.ApplicationServiceStub(self._channel)
+        self._device_api = chirpstack_api.DeviceServiceStub(self._channel)
 
     @paginate()
     async def _list_tenants(self, **kwargs):
@@ -62,39 +123,10 @@ class GRPCDiscoveryService:
         req = chirpstack_api.ListDevicesRequest(application_id=application_id, **kwargs)
         return await self._device_api.List(req, metadata=self._metadata)
 
-    async def _loop_forever(self):
-        while True:
-            try:
-                devices = {
-                    d.dev_eui
-                    for t in (await self._list_tenants()).result
-                    for a in (await self._list_applications(t.id)).result
-                    for d in (await self._list_devices(a.id)).result
-                }
-                removed = self._discovered.keys() - devices
-                added = devices - self._discovered.keys()
-                for dev_eui in removed:
-                    self._discovered[dev_eui].cancel()
-                for dev_eui in added:
-                    self._register(dev_eui)
-                await asyncio.sleep(60)
-            except Exception as e:
-                logger.exception(e)
-
-    def _register(self, id):
-        def unregister(_):
-            logger.info(f"Removing device {id}")
-            self._discovered.pop(id, None)
-
-        logger.info(f"Registering device {id}")
-        coroutine = self._on_discovery(id)
-        task = self._task_group.create_task(coroutine)  # run concurrently
-        task.add_done_callback(unregister)
-        self._discovered[id] = task
-
-    async def start(self):
-        async with asyncio.TaskGroup() as tg:
-            self._task_group = tg
-            logger.info(f"Starting discovery service...")
-            coroutine = self._loop_forever()
-            self.main_task = tg.create_task(coroutine)
+    async def _get_ids(self):
+        return {
+            d.dev_eui
+            for t in (await self._list_tenants()).result
+            for a in (await self._list_applications(t.id)).result
+            for d in (await self._list_devices(a.id)).result
+        }
