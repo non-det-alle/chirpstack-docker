@@ -10,12 +10,11 @@ from .logger import logger
 def paginate(page_size=100):
     def decorator(grpc_list_func):
         async def wrapped_function(*args, **kwargs):
-            kwargs["limit"] = page_size
+            kwargs |= {"limit": page_size}
             resp = await grpc_list_func(*args, **kwargs)
-            while len(resp.result) < resp.total_count:
-                kwargs["offset"] = len(resp.result)
-                tmp = await grpc_list_func(*args, **kwargs)
-                resp.result.extend(tmp.result)
+            offsets = list(range(page_size, resp.total_count, page_size))
+            rpcs = [grpc_list_func(*args, **(kwargs | {"offset": o})) for o in offsets]
+            [resp.result.extend(msg.result) for msg in await asyncio.gather(*rpcs)]
             return resp
 
         return wrapped_function
@@ -49,21 +48,17 @@ class GRPCDiscoveryService:
         await self._channel.close()
 
     @paginate()
-    async def _list_tenants(self, **kwargs) -> chirpstack_api.ListTenantsResponse:
+    async def _list_tenants(self, **kwargs):
         req = chirpstack_api.ListTenantsRequest(**kwargs)
         return await self._tenant_api.List(req, metadata=self._metadata)
 
     @paginate()
-    async def _list_applications(
-        self, tenant_id, **kwargs
-    ) -> chirpstack_api.ListApplicationsResponse:
+    async def _list_applications(self, tenant_id, **kwargs):
         req = chirpstack_api.ListApplicationsRequest(tenant_id=tenant_id, **kwargs)
         return await self._application_api.List(req, metadata=self._metadata)
 
     @paginate(page_size=1000)
-    async def _list_devices(
-        self, application_id, **kwargs
-    ) -> chirpstack_api.ListDevicesResponse:
+    async def _list_devices(self, application_id, **kwargs):
         req = chirpstack_api.ListDevicesRequest(application_id=application_id, **kwargs)
         return await self._device_api.List(req, metadata=self._metadata)
 
