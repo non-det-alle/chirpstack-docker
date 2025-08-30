@@ -2,8 +2,8 @@ import os
 import sys
 import asyncio
 
-from src.grpc_discovery_service import GRPCGatewayDiscoveryService
-from src.grpc_stream_reader import GRPCGatewayFramesReader
+from src.grpc_discovery_service import GRPCDeviceDiscoveryService
+from src.grpc_stream_reader import GRPCDeviceFramesReader
 from src.formatting import FrameLogItemToRecordsFormatter
 from src.influxdb_writer import InfluxDBWriterAsync
 from src.config import settings
@@ -22,8 +22,8 @@ def main():
     async def run():
         async with InfluxDBWriterAsync() as writer:
             with FrameLogItemToRecordsFormatter(writer.write) as formatter:
-                async with GRPCGatewayFramesReader(formatter.format) as reader:
-                    async with GRPCGatewayDiscoveryService(reader.read) as service:
+                async with GRPCDeviceFramesReader(formatter.format) as reader:
+                    async with GRPCDeviceDiscoveryService(reader.read) as service:
                         await service.start(poll_interval=5)
 
     try:

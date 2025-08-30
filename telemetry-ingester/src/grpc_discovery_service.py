@@ -84,20 +84,22 @@ class BaseGRPCDiscoveryService:
             self.main_task = tg.create_task(coroutine)
 
 
-class GRPCGatewayDiscoveryService(BaseGRPCDiscoveryService):
-    def __init__(self, on_discovery):
-        super().__init__(on_discovery)
+### See, grpc_stream_reader.py
 
-        self._gateway_api = chirpstack_api.GatewayServiceStub(self._channel)
+# class GRPCGatewayDiscoveryService(BaseGRPCDiscoveryService):
+#     def __init__(self, on_discovery):
+#         super().__init__(on_discovery)
 
-    @paginate()
-    async def _list_gateways(self, **kwargs):
-        req = chirpstack_api.ListGatewaysRequest(**kwargs)
-        return await self._gateway_api.List(req, metadata=self._metadata)
+#         self._gateway_api = chirpstack_api.GatewayServiceStub(self._channel)
 
-    async def _get_ids(self):
-        gateways = (await self._list_gateways()).result
-        return {g.gateway_id for g in gateways}
+#     @paginate()
+#     async def _list_gateways(self, **kwargs):
+#         req = chirpstack_api.ListGatewaysRequest(**kwargs)
+#         return await self._gateway_api.List(req, metadata=self._metadata)
+
+#     async def _get_ids(self):
+#         gateways = (await self._list_gateways()).result
+#         return {g.gateway_id for g in gateways}
 
 
 class GRPCDeviceDiscoveryService(BaseGRPCDiscoveryService):
