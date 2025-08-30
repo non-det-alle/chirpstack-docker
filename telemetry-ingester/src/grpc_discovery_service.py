@@ -67,21 +67,27 @@ class BaseGRPCDiscoveryService:
         """Overridden in child classes"""
         return set()
 
-    async def _loop_forever(self, poll_interval=30):
+    async def _loop_forever(self, interval=30):
         while True:
             try:
                 current_ids = await self._get_ids()
                 self._update_tasks(current_ids)
-                await asyncio.sleep(poll_interval)
+                await asyncio.sleep(interval)
             except Exception as e:
                 logger.exception(e)
+
+    async def _background_loop(self):
+        """Overridden in child classes"""
+        pass
 
     async def start(self, poll_interval=30):
         async with asyncio.TaskGroup() as tg:
             self._task_group = tg
             logger.info(f"Starting discovery service...")
-            coroutine = self._loop_forever(poll_interval)
-            self.main_task = tg.create_task(coroutine)
+            background = self._background_loop()
+            self._background_task = tg.create_task(background)
+            main = self._loop_forever(poll_interval)
+            self._main_task = tg.create_task(main)
 
 
 ### See, grpc_stream_reader.py
@@ -106,29 +112,52 @@ class GRPCDeviceDiscoveryService(BaseGRPCDiscoveryService):
     def __init__(self, on_discovery):
         super().__init__(on_discovery)
 
+        # see config.toml for semantic of these fields
+        self._tenant = settings.CHIRPSTACK_TENANT
+        self._application = settings.CHIRPSTACK_APPLICATION
+        self._device = settings.CHIRPSTACK_DEVICE
+
+        self._background_task: asyncio.Task
+        self._application_ids = []
+
         self._tenant_api = chirpstack_api.TenantServiceStub(self._channel)
         self._application_api = chirpstack_api.ApplicationServiceStub(self._channel)
         self._device_api = chirpstack_api.DeviceServiceStub(self._channel)
 
     @paginate()
-    async def _list_tenants(self, **kwargs):
-        req = chirpstack_api.ListTenantsRequest(**kwargs)
+    async def _list_tenants(self, search, **kwargs):
+        req = chirpstack_api.ListTenantsRequest(search=search, **kwargs)
         return await self._tenant_api.List(req, metadata=self._metadata)
 
     @paginate()
-    async def _list_applications(self, tenant_id, **kwargs):
-        req = chirpstack_api.ListApplicationsRequest(tenant_id=tenant_id, **kwargs)
+    async def _list_applications(self, tenant_id, search, **kwargs):
+        kwargs |= {"tenant_id": tenant_id, "search": search}
+        req = chirpstack_api.ListApplicationsRequest(**kwargs)
         return await self._application_api.List(req, metadata=self._metadata)
 
     @paginate(page_size=1000)
-    async def _list_devices(self, application_id, **kwargs):
-        req = chirpstack_api.ListDevicesRequest(application_id=application_id, **kwargs)
+    async def _list_devices(self, application_id, search, **kwargs):
+        kwargs |= {"application_id": application_id, "search": search}
+        req = chirpstack_api.ListDevicesRequest(**kwargs)
         return await self._device_api.List(req, metadata=self._metadata)
 
+    async def _get_application_ids(self):
+        tenant_ids = [t.id for t in (await self._list_tenants(self._tenant)).result]
+        rpcs = [self._list_applications(id, self._application) for id in tenant_ids]
+        return [a.id for resp in await asyncio.gather(*rpcs) for a in resp.result]
+
     async def _get_ids(self):
-        return {
-            d.dev_eui
-            for t in (await self._list_tenants()).result
-            for a in (await self._list_applications(t.id)).result
-            for d in (await self._list_devices(a.id)).result
-        }
+        rpcs = [self._list_devices(id, self._device) for id in self._application_ids]
+        return {d.dev_eui for resp in await asyncio.gather(*rpcs) for d in resp.result}
+
+    async def _background_loop(self):
+        while True:
+            try:
+                self._application_ids = await self._get_application_ids()
+                await asyncio.sleep(3600)
+            except Exception as e:
+                logger.exception(e)
+
+    async def start(self, poll_interval=30):
+        self._application_ids = await self._get_application_ids()  # block
+        await super().start(poll_interval)
