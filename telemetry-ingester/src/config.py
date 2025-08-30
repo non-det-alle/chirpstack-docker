@@ -16,6 +16,9 @@ class Config:
 
         chirpstack = c["chirpstack"]
         self.CHIRPSTACK_ENDPOINT = chirpstack["endpoint"]
+        self.CHIRPSTACK_TENANT = chirpstack.pop("tenant", None)
+        self.CHIRPSTACK_APPLICATION = chirpstack.pop("application", None)
+        self.CHIRPSTACK_DEVICE = chirpstack.pop("device", None)
 
         mosquitto = c["mosquitto"]
         self.MOSQUITTO_HOSTNAME = mosquitto["endpoint"].split(":")[0]
