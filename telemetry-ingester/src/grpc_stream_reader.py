@@ -9,7 +9,7 @@ from .config import settings
 from .logger import logger
 
 
-class GRPCStreamReader:
+class BaseGRPCStreamReader:
     def __init__(self, on_read):
         self._endpoint = settings.CHIRPSTACK_ENDPOINT
         self._token = settings.CHIRPSTACK_TOKEN
@@ -29,21 +29,6 @@ class GRPCStreamReader:
 
     async def close(self):
         await self._channel.close()
-
-    async def gateway_frames(self, gateway_id):
-        req = chirpstack_api.StreamGatewayFramesRequest(gateway_id=gateway_id)
-        stream = self._internal_api.StreamGatewayFrames(req, metadata=self._metadata)
-        await self._read_forever(gateway_id, stream)
-
-    async def device_frames(self, dev_eui):
-        req = chirpstack_api.StreamDeviceFramesRequest(dev_eui=dev_eui)
-        stream = self._internal_api.StreamDeviceFrames(req, metadata=self._metadata)
-        await self._read_forever(dev_eui, stream)
-
-    async def device_events(self, dev_eui):
-        req = chirpstack_api.StreamDeviceEventsRequest(dev_eui=dev_eui)
-        stream = self._internal_api.StreamDeviceEvents(req, metadata=self._metadata)
-        await self._read_forever(dev_eui, stream)
 
     async def _read_forever(self, id, stream):
         self._tracking[id] = (datetime.now(timezone.utc), np.uint64(0))
@@ -69,3 +54,24 @@ class GRPCStreamReader:
             log_item = unmarshal_protobuf_message_to_dict(message)
             if not obsolete():
                 await self._on_read(log_item)
+
+
+class GRPCGatewayFramesReader(BaseGRPCStreamReader):
+    async def read(self, gateway_id):
+        req = chirpstack_api.StreamGatewayFramesRequest(gateway_id=gateway_id)
+        stream = self._internal_api.StreamGatewayFrames(req, metadata=self._metadata)
+        await self._read_forever(gateway_id, stream)
+
+
+class GRPCDeviceFramesReader(BaseGRPCStreamReader):
+    async def read(self, dev_eui):
+        req = chirpstack_api.StreamDeviceFramesRequest(dev_eui=dev_eui)
+        stream = self._internal_api.StreamDeviceFrames(req, metadata=self._metadata)
+        await self._read_forever(dev_eui, stream)
+
+
+class GRPCDeviceEventsReader(BaseGRPCStreamReader):
+    async def read(self, dev_eui):
+        req = chirpstack_api.StreamDeviceEventsRequest(dev_eui=dev_eui)
+        stream = self._internal_api.StreamDeviceEvents(req, metadata=self._metadata)
+        await self._read_forever(dev_eui, stream)
