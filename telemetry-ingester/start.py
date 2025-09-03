@@ -2,10 +2,10 @@ import os
 import sys
 import asyncio
 
-from src.grpc_discovery_service import GRPCDeviceDiscoveryService
+from src.mqtt_discovery_service import MQTTDiscoveryService
 from src.grpc_stream_reader import GRPCDeviceFramesReader
 from src.formatting import FrameLogItemToRecordsFormatter
-from src.influxdb_writer import InfluxDBWriterAsync
+from src.influxdb_writer import InfluxDBWriter
 from src.config import settings
 from src.logger import logger
 
@@ -20,11 +20,11 @@ def main():
     logger.setLevel(settings.LOG_LEVEL)
 
     async def run():
-        async with InfluxDBWriterAsync() as writer:
+        async with InfluxDBWriter() as writer:
             with FrameLogItemToRecordsFormatter(writer.write) as formatter:
                 async with GRPCDeviceFramesReader(formatter.format) as reader:
-                    async with GRPCDeviceDiscoveryService(reader.read) as service:
-                        await service.start(poll_interval=5)
+                    with MQTTDiscoveryService(reader.read) as service:
+                        await service.start()
 
     try:
         asyncio.run(run())

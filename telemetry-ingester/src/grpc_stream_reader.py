@@ -2,11 +2,19 @@ from datetime import datetime, timezone, timedelta
 
 import grpc
 import chirpstack_api.api as chirpstack_api
-import numpy as np
+from google.protobuf.json_format import MessageToDict
+from google.protobuf.message import Message
 
-from .unmarshaling import unmarshal_protobuf_message_to_dict
 from .config import settings
 from .logger import logger
+
+
+def message_to_dict(message: Message) -> dict:
+    return MessageToDict(
+        message,
+        always_print_fields_with_no_presence=True,
+        preserving_proto_field_name=True,
+    )
 
 
 class BaseGRPCStreamReader:
@@ -31,7 +39,7 @@ class BaseGRPCStreamReader:
         await self._channel.close()
 
     async def _read_forever(self, id, stream):
-        self._tracking[id] = (datetime.now(timezone.utc), np.uint64(0))
+        self._tracking[id] = (datetime.now(timezone.utc), 0)
 
         def obsolete():
             last_seen, count = self._tracking[id]
@@ -51,18 +59,9 @@ class BaseGRPCStreamReader:
                 logger.error(f"gRPC error: {e.details()}")
                 self._tracking.pop(id, None)
                 break
-            log_item = unmarshal_protobuf_message_to_dict(message)
+            log_item = message_to_dict(message)
             if not obsolete():
                 await self._on_read(log_item)
-
-
-### UNFORTUNATELY THIS DOES NOT INCLUDE DEV_EUI FOR UPLINKS
-
-# class GRPCGatewayFramesReader(BaseGRPCStreamReader):
-#     async def read(self, gateway_id):
-#         req = chirpstack_api.StreamGatewayFramesRequest(gateway_id=gateway_id)
-#         stream = self._internal_api.StreamGatewayFrames(req, metadata=self._metadata)
-#         await self._read_forever(gateway_id, stream)
 
 
 class GRPCDeviceFramesReader(BaseGRPCStreamReader):

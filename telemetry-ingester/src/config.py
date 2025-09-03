@@ -14,17 +14,13 @@ class Config:
 
         self.LOG_LEVEL = c["log"]
 
-        chirpstack = c["chirpstack"]
-        self.CHIRPSTACK_ENDPOINT = chirpstack["endpoint"]
-        self.CHIRPSTACK_TENANT = chirpstack.pop("tenant", None)
-        self.CHIRPSTACK_APPLICATION = chirpstack.pop("application", None)
-        self.CHIRPSTACK_DEVICE = chirpstack.pop("device", None)
-
         mosquitto = c["mosquitto"]
         self.MOSQUITTO_HOSTNAME = mosquitto["endpoint"].split(":")[0]
         self.MOSQUITTO_PORT = int(mosquitto["endpoint"].split(":")[1])
         self.MOSQUITTO_TOPICS = mosquitto["topics"]
-        self.MOSQUITTO_QOS = mosquitto["qos"]
+
+        chirpstack = c["chirpstack"]
+        self.CHIRPSTACK_ENDPOINT = chirpstack["endpoint"]
 
         influxdb = c["influxdb"]
         self.INFLUXDB_URL = "http://" + influxdb["endpoint"]
