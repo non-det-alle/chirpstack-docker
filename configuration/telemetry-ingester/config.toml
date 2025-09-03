@@ -1,6 +1,7 @@
 # Log level: ERROR, WARNING, INFO, DEBUG
 log = "INFO"
 
+
 # MQTT broker for event polling
 [mosquitto]
 
@@ -11,8 +12,13 @@ endpoint = "mosquitto:1883"
 # https://www.chirpstack.io/docs/chirpstack/integrations/mqtt.html
 topics = "application/#"
 
-# The MQTT QoS to use when subscribing
-qos = 2
+
+# LoRaWAN network server to source frame logs
+[chirpstack]
+
+# This must point to ChirpStack's gRPC API interface.
+endpoint = "chirpstack:8080"
+
 
 # Time-series database for the metrics collection system
 [influxdb]

@@ -4,7 +4,6 @@ import paho.mqtt.client as paho
 from paho.mqtt.enums import CallbackAPIVersion
 
 from .async_mqtt_client import ClientAsync
-from .unmarshaling import unmarshal_mqtt_event_to_dict
 from .config import settings
 from .logger import logger
 
@@ -49,10 +48,7 @@ class MQTTDiscoveryService:
         def on_message(client, userdata, message):
             try:
                 logger.debug(f'MQTT message on topic "{message.topic}"')
-                event_type = message.topic.split("/")[-1]
-                data = unmarshal_mqtt_event_to_dict(message.payload, event_type)
-                logger.debug(f"Unmarshaled event data: {data}")
-                dev_eui = data["device_info"]["dev_eui"]
+                dev_eui = message.topic.split("/")[3]
                 self._ensure_registered(dev_eui)
             except Exception as e:
                 logger.exception(f"Error processing MQTT message: {e}")
