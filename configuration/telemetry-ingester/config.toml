@@ -2,7 +2,7 @@
 log = "INFO"
 
 
-# MQTT broker for event polling
+# MQTT broker for event-based device discovery
 [mosquitto]
 
 # The endpoint of ChirpStack's MQTT broker
