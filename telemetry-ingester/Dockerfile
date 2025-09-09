@@ -25,5 +25,6 @@ RUN apk add --no-cache tini && \
     rm -rf chirpstack_api/ protobuf.txt
 
 COPY src/ src/
+COPY start.py .
 
-ENTRYPOINT ["/sbin/tini", "-g", "--", "python", "-m", "src.mqtt_to_influxdb"]
+ENTRYPOINT ["/sbin/tini", "-g", "--", "python", "start.py"]
