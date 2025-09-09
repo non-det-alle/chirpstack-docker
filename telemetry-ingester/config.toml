@@ -2,14 +2,7 @@
 log = "INFO"
 
 
-# LoRaWAN network server to source frame logs
-[chirpstack]
-
-# This must point to ChirpStack's gRPC API interface.
-endpoint = "localhost:8080"
-
-
-# MQTT broker for event polling
+# MQTT broker for event-based device discovery
 [mosquitto]
 
 # The endpoint of ChirpStack's MQTT broker
@@ -18,6 +11,13 @@ endpoint = "localhost:1883"
 # MQTT subscription topic(s)
 # https://www.chirpstack.io/docs/chirpstack/integrations/mqtt.html
 topics = "application/#"
+
+
+# LoRaWAN network server to source frame logs
+[chirpstack]
+
+# This must point to ChirpStack's gRPC API interface.
+endpoint = "localhost:8080"
 
 
 # Time-series database for the metrics collection system
