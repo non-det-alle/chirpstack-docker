@@ -72,6 +72,10 @@ services:
       args: 
         API_VERSION: v4.14.0+cs.3
     command: -c /etc/telemetry-ingester
+    restart: unless-stopped
+    secrets: [chirpstack-api-token]
+    environment:
+      CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
       - ./configuration/telemetry-ingester:/etc/telemetry-ingester
     depends_on:
