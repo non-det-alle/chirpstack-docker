@@ -9,25 +9,47 @@ from paho.mqtt.enums import MQTTErrorCode, _ConnectionState
 from paho.mqtt.client import Client, MQTT_LOG_DEBUG
 
 
-async def select_async(rlist, wlist, timeout):
-    loop = asyncio.get_event_loop()
-    future_bag = []
+async def select_async(rlist, wlist, timeout=None) -> tuple[list, list]:
+    # inspired by asyncio.wait source code
+    rlist, wlist = set(rlist), set(wlist)
+    
+    loop = asyncio.get_running_loop()
+    waiter = loop.create_future()
 
-    for sock in rlist:
-        future = asyncio.Future()
-        loop.add_reader(sock, future.set_result, sock)
-        future.add_done_callback(lambda _: loop.remove_reader(sock))
-        future_bag.append(future)
+    def _release_waiter():
+        if not waiter.done():
+            waiter.set_result(None)
 
-    for sock in wlist:
-        future = asyncio.Future()
-        loop.add_writer(sock, future.set_result, sock)
-        future.add_done_callback(lambda _: loop.remove_writer(sock))
-        future_bag.append(future)
+    timeout_handle = None
+    if timeout is not None:
+        timeout_handle = loop.call_later(timeout, _release_waiter)
 
-    done, _ = await asyncio.wait(future_bag, timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
-    ready = [f.result() for f in done]
-    return [s for s in ready if s in rlist], [s for s in ready if s in wlist]
+    rout, wout = set(), set()
+
+    def _on_completion(callback, *args):
+        if timeout_handle is not None:
+            timeout_handle.cancel()
+        if not waiter.done():
+            waiter.set_result(None)
+        callback(*args)
+
+    for fd in rlist:
+        loop.add_reader(fd, _on_completion, rout.add, fd)
+    for fd in wlist:
+        loop.add_writer(fd, _on_completion, wout.add, fd)
+    
+    try:
+        await waiter
+    finally:
+        if timeout_handle is not None:
+            timeout_handle.cancel()
+        for fd in rlist:
+            loop.remove_reader(fd)
+        for fd in wlist:
+            loop.remove_writer(fd)
+            
+    return list(rout), list(wout)
+
 
 class ClientAsync(Client):
     async def _loop_async(self, timeout: float = 1.0) -> MQTTErrorCode:
