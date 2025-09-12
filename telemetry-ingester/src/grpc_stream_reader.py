@@ -30,19 +30,19 @@ class BaseGRPCStreamReader:
         await self._channel.close()
 
     async def _read_forever(self, stream):
-        async def read_stream():
+        async def _read_stream():
             return MessageToDict(
                 await stream.read(),
                 always_print_fields_with_no_presence=True,
                 preserving_proto_field_name=True,
             )
 
-        async def first_message():
+        async def _first_message():
             # on stream instantiation, chirpstack always fetches up to 10
             # logs (as this was meant for UI display) but we want the actual
             # latest log(s) that triggered the server-side send
 
-            def message_is_obsolete():
+            def _message_is_obsolete():
                 msg_time = datetime.fromisoformat(message["time"])
                 now = datetime.now(timezone.utc)
                 assert now > msg_time  # otherwise timezone issues?
@@ -52,16 +52,16 @@ class BaseGRPCStreamReader:
                 return msg_age > timedelta(seconds=1)
 
             # consume out-of-date logs
-            message = await read_stream()
-            while message_is_obsolete():
-                message = await read_stream()
+            message = await _read_stream()
+            while _message_is_obsolete():
+                message = await _read_stream()
             return message
 
         try:
-            log_item = await first_message()
+            log_item = await _first_message()
             while True:
                 await self._on_read(log_item)
-                log_item = await read_stream()
+                log_item = await _read_stream()
         except grpc.aio.AioRpcError as e:
             logger.error(f"gRPC error: {e.details()}")
 
