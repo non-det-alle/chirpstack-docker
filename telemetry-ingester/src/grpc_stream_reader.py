@@ -69,12 +69,14 @@ class BaseGRPCStreamReader:
 class GRPCDeviceFramesReader(BaseGRPCStreamReader):
     async def read(self, dev_eui):
         req = chirpstack_api.StreamDeviceFramesRequest(dev_eui=dev_eui)
-        stream = self._internal_api.StreamDeviceFrames(req, metadata=self._metadata)
+        kwargs = {"metadata": self._metadata, "timeout": 86400}
+        stream = self._internal_api.StreamDeviceFrames(req, **kwargs)
         await self._read_forever(stream)
 
 
 class GRPCDeviceEventsReader(BaseGRPCStreamReader):
     async def read(self, dev_eui):
         req = chirpstack_api.StreamDeviceEventsRequest(dev_eui=dev_eui)
-        stream = self._internal_api.StreamDeviceEvents(req, metadata=self._metadata)
+        kwargs = {"metadata": self._metadata, "timeout": 86400}
+        stream = self._internal_api.StreamDeviceEvents(req, **kwargs)
         await self._read_forever(stream)
