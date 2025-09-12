@@ -19,7 +19,7 @@ def main():
     settings.load(sys.argv[2])
     logger.setLevel(settings.LOG_LEVEL)
 
-    async def run():
+    async def _run():
         async with InfluxDBWriter() as writer:
             with FrameLogItemToRecordsFormatter(writer.write) as formatter:
                 async with GRPCDeviceFramesReader(formatter.format) as reader:
@@ -27,7 +27,7 @@ def main():
                         await service.start()
 
     try:
-        asyncio.run(run())
+        asyncio.run(_run())
     except KeyboardInterrupt:
         logger.info("Service interrupted. Shutting down...")
 

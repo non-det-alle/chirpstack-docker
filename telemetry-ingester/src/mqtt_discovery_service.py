@@ -37,7 +37,7 @@ class MQTTDiscoveryService:
         self._client.disconnect()
 
     def _setup_callbacks(self):
-        def on_connect(client, userdata, flags, rc, properties):
+        def _on_connect(client, userdata, flags, rc, properties):
             if rc != 0:
                 err = paho.connack_string(rc)
                 logger.error(f"Connection failure: {err}")
@@ -45,7 +45,7 @@ class MQTTDiscoveryService:
             logger.info(f"Connection success. Subscribing to {TOPICS}")
             client.subscribe(TOPICS)
 
-        def on_message(client, userdata, message):
+        def _on_message(client, userdata, message):
             try:
                 logger.debug(f'MQTT message on topic "{message.topic}"')
                 dev_eui = message.topic.split("/")[3]
@@ -53,17 +53,17 @@ class MQTTDiscoveryService:
             except Exception as e:
                 logger.exception(f"Error processing MQTT message: {e}")
 
-        def on_disconnect(client, userdata, flags, rc, properties):
+        def _on_disconnect(client, userdata, flags, rc, properties):
             if rc != 0:
                 err = paho.error_string(rc)
                 logger.error(f"Unexpected MQTT disconnect: {err} Reconnecting...")
 
-        self._client.on_connect = on_connect
-        self._client.on_message = on_message
-        self._client.on_disconnect = on_disconnect
+        self._client.on_connect = _on_connect
+        self._client.on_message = _on_message
+        self._client.on_disconnect = _on_disconnect
 
     def _ensure_registered(self, id):
-        def unregister(_):
+        def _unregister(_):
             logger.info(f"Removing device {id}")
             self._discovered.pop(id, None)
 
@@ -71,7 +71,7 @@ class MQTTDiscoveryService:
             logger.info(f"Registering device {id}")
             coroutine = self._on_discovery(id)
             task = self._task_group.create_task(coroutine)  # run concurrently
-            task.add_done_callback(unregister)
+            task.add_done_callback(_unregister)
             self._discovered[id] = task
 
     async def start(self):

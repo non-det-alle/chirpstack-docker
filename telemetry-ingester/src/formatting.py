@@ -6,14 +6,14 @@ from .logger import logger
 def _flatten_nested_dict(y: dict) -> dict:
     out = {}
 
-    def do_flatten(x, name=""):
+    def _do_flatten(x, name=""):
         if type(x) is dict:
             for k in x:
-                do_flatten(x[k], name + k + ".")
+                _do_flatten(x[k], name + k + ".")
         else:
             out[name[:-1]] = x
 
-    do_flatten(y)
+    _do_flatten(y)
     return out
 
 
