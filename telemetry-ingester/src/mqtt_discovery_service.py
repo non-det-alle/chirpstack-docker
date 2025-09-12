@@ -80,4 +80,4 @@ class MQTTDiscoveryService:
             endpoint = f"{self._hostname}:{self._port}"
             logger.info(f"Connecting to MQTT broker at {endpoint}")
             coroutine = self._client.loop_forever_async()
-            self.main_task = tg.create_task(coroutine)
+            self._main_task = tg.create_task(coroutine)
