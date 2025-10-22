@@ -6,13 +6,16 @@ from google.protobuf.json_format import MessageToDict
 from google.protobuf.message import Message
 
 from .config import settings
-from .logger import logger
+from .logger import getLogger
 
 
 class BaseGRPCStreamReader:
-    def __init__(self, on_read):
+    def __init__(self, on_read, log_level: None | str = None):
         self._endpoint = settings.CHIRPSTACK_ENDPOINT
         self._token = settings.CHIRPSTACK_TOKEN
+
+        self.log = getLogger(self.__class__.__name__)
+        self.log.setLevel(log_level if log_level else settings.LOG_LEVEL)
 
         self._channel = grpc.aio.insecure_channel(self._endpoint)
         self._metadata = [("authorization", f"Bearer {self._token}")]
@@ -47,7 +50,7 @@ class BaseGRPCStreamReader:
                 now = datetime.now(timezone.utc)
                 assert now > msg_time  # otherwise timezone issues?
                 msg_age = now - msg_time
-                logger.debug(f"msg_age={msg_age}")
+                self.log.debug(f"msg_age={msg_age}")
                 # chirpstack checks for new logs every 1 second
                 return msg_age > timedelta(seconds=1)
 
@@ -63,7 +66,7 @@ class BaseGRPCStreamReader:
                 await self._on_read(log_item)
                 log_item = await _read_stream()
         except grpc.aio.AioRpcError as e:
-            logger.error(f"gRPC error: {e.details()}")
+            self.log.error(f"gRPC error: {e.details()}")
 
 
 class GRPCDeviceFramesReader(BaseGRPCStreamReader):
