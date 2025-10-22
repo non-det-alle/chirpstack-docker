@@ -1,7 +1,20 @@
 import json
+import re
 
 from .logger import getLogger
 from .config import settings
+
+# [A-Z][a-z]+ any uppercase letter followed by 1+ lowercase
+# (?!^) not at the start of the string ^
+# (?<!_) not preceded by _
+# or |
+# [A-Z] any uppercase letter
+# (?<=[a-z0-9]) preceded by one lowercase letter or number
+_c2s = re.compile("((?!^)(?<!_)[A-Z][a-z]+|(?<=[a-z0-9])[A-Z])")
+
+
+def _camel_to_snake(s: str) -> str:
+    return _c2s.sub(r"_\1", s).lower()
 
 
 def _flatten_nested_dict(y: dict) -> dict:
@@ -9,8 +22,9 @@ def _flatten_nested_dict(y: dict) -> dict:
 
     def _do_flatten(x, name=""):
         if type(x) is dict:
-            for k in x:
-                _do_flatten(x[k], name + k + ".")
+            for key, val in x.items():
+                key = _camel_to_snake(key)
+                _do_flatten(val, name + key + ".")
         else:
             out[name[:-1]] = x
 
