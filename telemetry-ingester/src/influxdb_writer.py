@@ -32,7 +32,7 @@ class InfluxDBWriter:
     async def write(self, records: list[dict]):
         try:
             points = [Point.from_dict(p) for p in records]
-            await self._write_api.write(self._bucket, record=points)
+            assert await self._write_api.write(self._bucket, record=points)
             self.log.debug(f"Written to InfluxDB: {records}")
         except Exception as e:
             self.log.exception(f"Failed to write to InfluxDB: {e}")
