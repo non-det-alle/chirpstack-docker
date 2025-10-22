@@ -48,8 +48,8 @@ class FrameLogItemToRecordsFormatter:
         self.log.setLevel(log_level if log_level else settings.LOG_LEVEL)
 
         self.UPLINK_FIELDS = (
-            ("rssi", "float"),
-            ("snr", "float"),
+            ("rx_info.rssi", "float"),
+            ("rx_info.snr", "float"),
         )
 
         self._on_format = on_format
@@ -102,12 +102,13 @@ class FrameLogItemToRecordsFormatter:
         records = []
         for rx in rx_info:
             rx = _flatten_nested_dict(rx)
+            rx = {"rx_info." + k: v for k, v in rx.items()}
             p = _new_point_dict(time, "device_uplink_frame_log", tags)
             for field, type in self.UPLINK_FIELDS:
                 if field in rx:
                     p["fields"][field] = rx.pop(field)
                     p["field_types"][field] = type
-            p["tags"].update({"rx_info." + k: v for k, v in rx.items()})
+            p["tags"].update(rx)
             records.append(p)
 
         return records
