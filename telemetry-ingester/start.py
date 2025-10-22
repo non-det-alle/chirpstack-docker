@@ -6,8 +6,8 @@ from src.mqtt_discovery_service import MQTTDiscoveryService
 from src.grpc_stream_reader import GRPCDeviceFramesReader
 from src.formatting import FrameLogItemToRecordsFormatter
 from src.influxdb_writer import InfluxDBWriter
+from src.logger import global_logger as logger
 from src.config import settings
-from src.logger import logger
 
 
 def main():

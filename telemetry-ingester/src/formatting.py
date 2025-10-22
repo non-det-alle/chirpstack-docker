@@ -1,6 +1,7 @@
 import json
 
-from .logger import logger
+from .logger import getLogger
+from .config import settings
 
 
 def _flatten_nested_dict(y: dict) -> dict:
@@ -102,7 +103,10 @@ def _apply_common_frame_log_item_formatting(data: dict) -> dict:
 
 
 class FrameLogItemToRecordsFormatter:
-    def __init__(self, on_format):
+    def __init__(self, on_format, log_level: None | str = None):
+        self.log = getLogger(self.__class__.__name__)
+        self.log.setLevel(log_level if log_level else settings.LOG_LEVEL)
+
         self._on_format = on_format
 
     def __enter__(self):
@@ -116,4 +120,4 @@ class FrameLogItemToRecordsFormatter:
             records = frame_log_item_to_records(data)
             await self._on_format(records)
         except Exception as e:
-            logger.error(f"Formatting error: {e}")
+            self.log.error(f"Formatting error: {e}")
