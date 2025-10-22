@@ -1,3 +1,4 @@
+import enum
 import json
 
 from .logger import getLogger
@@ -28,40 +29,44 @@ def _new_point_dict(time: str, measurement: str, tags: dict):
     }
 
 
-def frame_log_item_to_records(data: dict) -> list[dict]:
-    data["body"] = json.loads(data["body"])  # deserialize body
-    return _deserialized_frame_log_item_to_records(data)
+def _flatten_frame_log_item(log_item: dict) -> dict:
+    out = {}
+
+    out["log_item_id"] = log_item["id"]
+    out["time"] = log_item["time"]
+    # log_item["description"]: ignored, f_type already in phy_payload
+
+    body = json.loads(log_item["body"])  # deserialize body
+    out["phy_payload"] = body["phy_payload"]
+    out["tx_info"] = body["tx_info"]
+    if "rx_info" in body:  # uplink
+        out["rx_info"] = body["rx_info"]
+
+    properties = log_item["properties"]
+    out["dev_eui"] = properties["DevEUI"]
+    out["dev_addr"] = properties["DevAddr"]
+    if "Gateway ID" in properties:  # downlink
+        out["gateway_id"] = properties["Gateway ID"]
+
+    return out
 
 
-def _deserialized_frame_log_item_to_records(data: dict) -> list[dict]:
-    is_uplink = _validate_frame_log_item_format(data)
-
-    if is_uplink:
-        records = _uplink_frame_log_item_to_records(data)
-    else:  # is_downlink
-        records = _downlink_frame_log_item_to_records(data)
-
-    return records
-
-
-def _validate_frame_log_item_format(data):
-    body, properties = data["body"], data["properties"]
+def _is_uplink_frame_data(data):
     # downlinks do not have the rx_info field in the body
     # and they have an additional "Gateway ID" property
-    if "rx_info" in body and not "Gateway ID" in properties:
+    if "rx_info" in data and not "gateway_id" in data:
         return True
-    elif "Gateway ID" in properties and not "rx_info" in body:
+    elif "gateway_id" in data and not "rx_info" in data:
         return False
     else:
         raise ValueError(f"Unknown frame LogItem format: {data}")
 
 
-def _uplink_frame_log_item_to_records(data: dict) -> list[dict]:
+def _uplink_frame_data_to_records(data: dict) -> list[dict]:
     FIELDS = ("rssi", "snr")
 
     time = data.pop("time")  # influxdb does not like the "time" tag
-    rx_info = data["body"].pop("rx_info")
-    data = _apply_common_frame_log_item_formatting(data)
+    rx_info = data.pop("rx_info")
     tags = _flatten_nested_dict(data)
 
     records = []
@@ -70,16 +75,14 @@ def _uplink_frame_log_item_to_records(data: dict) -> list[dict]:
         for f in (f for f in FIELDS if f in rx):
             p["fields"][f] = rx.pop(f)
             p["field_types"][f] = "float"
-        p["tags"].update(rx)
+        p["tags"].update({"rx_info." + k: v for k, v in rx.items()})
         records.append(p)
 
     return records
 
 
-def _downlink_frame_log_item_to_records(data: dict) -> list[dict]:
+def _downlink_frame_data_to_records(data: dict) -> list[dict]:
     time = data.pop("time")  # influxdb does not like the "time" tag
-    data["gateway_id"] = data["properties"].pop("Gateway ID")
-    data = _apply_common_frame_log_item_formatting(data)
     tags = _flatten_nested_dict(data)
 
     records = []
@@ -90,16 +93,12 @@ def _downlink_frame_log_item_to_records(data: dict) -> list[dict]:
     return records
 
 
-def _apply_common_frame_log_item_formatting(data: dict) -> dict:
-    body = data.pop("body")  # consume body, flatten fields
-    data["phy_payload"] = json.dumps(body.pop("phy_payload"))  # keep serialized
-    data["tx_info"] = body.pop("tx_info")
-
-    properties = data.pop("properties")  # consume properties, flatten fields
-    data["dev_eui"] = properties.pop("DevEUI")
-    data["dev_addr"] = properties.pop("DevAddr")
-
-    return data
+def frame_log_item_to_records(log_item: dict) -> list[dict]:
+    data = _flatten_frame_log_item(log_item)
+    if _is_uplink_frame_data(data):
+        return _uplink_frame_data_to_records(data)
+    else:  # is_downlink
+        return _downlink_frame_data_to_records(data)
 
 
 class FrameLogItemToRecordsFormatter:
@@ -115,9 +114,9 @@ class FrameLogItemToRecordsFormatter:
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
-    async def format(self, data: dict):
+    async def format(self, log_item: dict):
         try:
-            records = frame_log_item_to_records(data)
+            records = frame_log_item_to_records(log_item)
             await self._on_format(records)
         except Exception as e:
             self.log.error(f"Formatting error: {e}")
