@@ -101,14 +101,11 @@ class FrameLogItemToRecordsFormatter:
 
         records = []
         for rx in rx_info:
-            rx = _flatten_nested_dict(rx)
-            rx = {"rx_info." + k: v for k, v in rx.items()}
-            p = _new_point_dict(time, "device_uplink_frame_log", tags)
+            rx = {"rx_info." + k: v for k, v in _flatten_nested_dict(rx).items()}
+            p = _new_point_dict(time, "device_uplink_frame_log", tags | rx)
             for field, type in self.UPLINK_FIELDS:
-                if field in rx:
-                    p["fields"][field] = rx.pop(field)
-                    p["field_types"][field] = type
-            p["tags"].update(rx)
+                p["fields"][field] = p["tags"].pop(field)
+                p["field_types"][field] = type
             records.append(p)
 
         return records
