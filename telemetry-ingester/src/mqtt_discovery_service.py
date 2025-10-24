@@ -17,8 +17,8 @@ class MQTTDiscoveryService:
         self._hostname = settings.MOSQUITTO_HOSTNAME
         self._port = settings.MOSQUITTO_PORT
 
-        self.log = getLogger(self.__class__.__name__)
-        self.log.setLevel(log_level if log_level else settings.LOG_LEVEL)
+        self._log = getLogger(self.__class__.__name__)
+        self._log.setLevel(log_level if log_level else settings.LOG_LEVEL)
 
         self._client = ClientAsync(CallbackAPIVersion.VERSION2)
         self._on_discovery = on_discovery
@@ -27,7 +27,7 @@ class MQTTDiscoveryService:
         self._discovered = {}
 
         self._setup_callbacks()
-        self._client.enable_logger(self.log)
+        self._client.enable_logger(self._log)
         self._client.connect_async(self._hostname, self._port)
 
     def __enter__(self):
@@ -43,23 +43,23 @@ class MQTTDiscoveryService:
         def _on_connect(client, userdata, flags, rc, properties):
             if rc != 0:
                 err = paho.connack_string(rc)
-                self.log.error(f"Connection failure: {err}")
+                self._log.error(f"Connection failure: {err}")
                 return
-            self.log.info(f"Connection success. Subscribing to {TOPICS}")
+            self._log.info(f"Connection success. Subscribing to {TOPICS}")
             client.subscribe(TOPICS)
 
         def _on_message(client, userdata, message):
             try:
-                self.log.debug(f'MQTT message on topic "{message.topic}"')
+                self._log.debug(f'MQTT message on topic "{message.topic}"')
                 dev_eui = message.topic.split("/")[3]
                 self._ensure_registered(dev_eui)
             except Exception as e:
-                self.log.exception(f"Error processing MQTT message: {e}")
+                self._log.exception(f"Error processing MQTT message: {e}")
 
         def _on_disconnect(client, userdata, flags, rc, properties):
             if rc != 0:
                 err = paho.error_string(rc)
-                self.log.error(f"Unexpected MQTT disconnect: {err} Reconnecting...")
+                self._log.error(f"Unexpected MQTT disconnect: {err} Reconnecting...")
 
         self._client.on_connect = _on_connect
         self._client.on_message = _on_message
@@ -67,11 +67,11 @@ class MQTTDiscoveryService:
 
     def _ensure_registered(self, id):
         def _unregister(_):
-            self.log.info(f"Removing device {id}")
+            self._log.info(f"Removing device {id}")
             self._discovered.pop(id, None)
 
         if id not in self._discovered:
-            self.log.info(f"Registering device {id}")
+            self._log.info(f"Registering device {id}")
             coroutine = self._on_discovery(id)
             task = self._task_group.create_task(coroutine)  # run concurrently
             task.add_done_callback(_unregister)
@@ -81,6 +81,6 @@ class MQTTDiscoveryService:
         async with asyncio.TaskGroup() as tg:
             self._task_group = tg
             endpoint = f"{self._hostname}:{self._port}"
-            self.log.info(f"Connecting to MQTT broker at {endpoint}")
+            self._log.info(f"Connecting to MQTT broker at {endpoint}")
             coroutine = self._client.loop_forever_async()
             self._main_task = tg.create_task(coroutine)
