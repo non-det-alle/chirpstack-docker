@@ -64,21 +64,21 @@ class FrameLogItemToRecordsFormatter:
         # LogItem: id, time, description, body, properties
         out = {}
 
-        out["log_item_id"] = log_item["id"]
         out["time"] = log_item["time"]
+        out["log_item_id"] = log_item["id"]
         # log_item["description"]: f_type already in phy_payload
-
-        body = json.loads(log_item["body"])  # deserialize body
-        out["phy_payload"] = body["phy_payload"]
-        out["tx_info"] = body["tx_info"]
-        if "rx_info" in body:  # uplink
-            out["rx_info"] = body["rx_info"]
 
         properties = log_item["properties"]
         out["dev_eui"] = properties["DevEUI"]
         # properties["DevAddr"]: devaddr already in phy_payload
         if "Gateway ID" in properties:  # downlink
             out["gateway_id"] = properties["Gateway ID"]
+
+        body = json.loads(log_item["body"])  # deserialize body
+        out["phy_payload"] = body["phy_payload"]
+        out["tx_info"] = body["tx_info"]
+        if "rx_info" in body:  # uplink
+            out["rx_info"] = body["rx_info"]
 
         return out
 
