@@ -14,8 +14,8 @@ class InfluxDBWriter:
         self._org = settings.INFLUXDB_ORG
         self._bucket = settings.INFLUXDB_BUCKET
 
-        self.log = getLogger(self.__class__.__name__)
-        self.log.setLevel(log_level if log_level else settings.LOG_LEVEL)
+        self._log = getLogger(self.__class__.__name__)
+        self._log.setLevel(log_level if log_level else settings.LOG_LEVEL)
 
         self._client = InfluxDBClientAsync(self._url, self._token, self._org)
         self._write_api = self._client.write_api()
@@ -33,6 +33,6 @@ class InfluxDBWriter:
         try:
             points = [Point.from_dict(p) for p in records]
             assert await self._write_api.write(self._bucket, record=points)
-            self.log.debug(f"Written to InfluxDB: {records}")
+            self._log.debug(f"Written to InfluxDB: {records}")
         except Exception as e:
-            self.log.exception(f"Failed to write to InfluxDB: {e}")
+            self._log.exception(f"Failed to write to InfluxDB: {e}")

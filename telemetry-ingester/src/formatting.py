@@ -44,8 +44,8 @@ def _new_point_dict(time: str, measurement: str, tags: dict):
 
 class FrameLogItemToRecordsFormatter:
     def __init__(self, on_format, log_level: None | str = None):
-        self.log = getLogger(self.__class__.__name__)
-        self.log.setLevel(log_level if log_level else settings.LOG_LEVEL)
+        self._log = getLogger(self.__class__.__name__)
+        self._log.setLevel(log_level if log_level else settings.LOG_LEVEL)
 
         self.UPLINK_FIELDS = (
             ("rx_info.rssi", "float"),
@@ -132,4 +132,4 @@ class FrameLogItemToRecordsFormatter:
                 records = self._downlink_to_records(data)
             await self._on_format(records)
         except Exception as e:
-            self.log.error(f"Formatting error: {e}")
+            self._log.error(f"Formatting error: {e}")

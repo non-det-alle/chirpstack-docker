@@ -14,8 +14,8 @@ class BaseGRPCStreamReader:
         self._endpoint = settings.CHIRPSTACK_ENDPOINT
         self._token = settings.CHIRPSTACK_TOKEN
 
-        self.log = getLogger(self.__class__.__name__)
-        self.log.setLevel(log_level if log_level else settings.LOG_LEVEL)
+        self._log = getLogger(self.__class__.__name__)
+        self._log.setLevel(log_level if log_level else settings.LOG_LEVEL)
 
         self._channel = grpc.aio.insecure_channel(self._endpoint)
         self._metadata = [("authorization", f"Bearer {self._token}")]
@@ -50,7 +50,7 @@ class BaseGRPCStreamReader:
                 now = datetime.now(timezone.utc)
                 assert now > msg_time  # otherwise timezone issues?
                 msg_age = now - msg_time
-                self.log.debug(f"msg_age={msg_age}")
+                self._log.debug(f"msg_age={msg_age}")
                 # chirpstack checks for new logs every 1 second
                 return msg_age > timedelta(seconds=1)
 
@@ -66,7 +66,7 @@ class BaseGRPCStreamReader:
                 await self._on_read(log_item)
                 log_item = await _read_stream()
         except grpc.aio.AioRpcError as e:
-            self.log.error(f"gRPC error: {e.details()}")
+            self._log.error(f"gRPC error: {e.details()}")
 
 
 class GRPCDeviceFramesReader(BaseGRPCStreamReader):
