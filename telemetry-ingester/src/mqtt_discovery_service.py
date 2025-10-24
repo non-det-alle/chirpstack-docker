@@ -7,15 +7,12 @@ from .async_mqtt_client import ClientAsync
 from .config import settings
 from .logger import getLogger
 
-# MQTT subscription topic(s)
-# https://www.chirpstack.io/docs/chirpstack/integrations/mqtt.html
-TOPICS = "application/#"
-
 
 class MQTTDiscoveryService:
     def __init__(self, on_discovery, log_level: None | str = None):
         self._hostname = settings.MOSQUITTO_HOSTNAME
         self._port = settings.MOSQUITTO_PORT
+        self._topics = settings.MOSQUITTO_TOPICS
 
         self._log = getLogger(self.__class__.__name__)
         self._log.setLevel(log_level if log_level else settings.LOG_LEVEL)
@@ -45,8 +42,8 @@ class MQTTDiscoveryService:
                 err = paho.connack_string(rc)
                 self._log.error(f"Connection failure: {err}")
                 return
-            self._log.info(f"Connection success. Subscribing to {TOPICS}")
-            client.subscribe(TOPICS)
+            self._log.info(f"Connection success. Subscribing to {self._topics}")
+            client.subscribe(self._topics)
 
         def _on_message(client, userdata, message):
             try:
