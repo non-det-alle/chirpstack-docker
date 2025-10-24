@@ -12,6 +12,9 @@ endpoint = "localhost:1883"
 # https://www.chirpstack.io/docs/chirpstack/integrations/mqtt.html
 topics = "application/#"
 
+# On initial connection failure, amount of seconds before trying again
+reconnect_delay = 60
+
 
 # LoRaWAN network server to source frame logs
 [chirpstack]
