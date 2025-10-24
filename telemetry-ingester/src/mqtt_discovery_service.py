@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import paho.mqtt.client as paho
 from paho.mqtt.enums import CallbackAPIVersion
@@ -10,9 +11,9 @@ from .logger import getLogger
 
 class MQTTDiscoveryService:
     def __init__(self, on_discovery, log_level: None | str = None):
-        self._hostname = settings.MOSQUITTO_HOSTNAME
-        self._port = settings.MOSQUITTO_PORT
+        self._endpoint = settings.MOSQUITTO_ENDPOINT
         self._topics = settings.MOSQUITTO_TOPICS
+        self._reconnect_delay = settings.MOSQUITTO_RECONNECT_DELAY
 
         self._log = getLogger(self.__class__.__name__)
         self._log.setLevel(log_level if log_level else settings.LOG_LEVEL)
@@ -23,9 +24,9 @@ class MQTTDiscoveryService:
         self._main_task: asyncio.Task
         self._discovered = {}
 
-        self._setup_callbacks()
         self._client.enable_logger(self._log)
-        self._client.connect_async(self._hostname, self._port)
+        self._setup_callbacks()
+        self._connect()
 
     def __enter__(self):
         return self
@@ -62,6 +63,19 @@ class MQTTDiscoveryService:
         self._client.on_message = _on_message
         self._client.on_disconnect = _on_disconnect
 
+    def _connect(self):
+        hostname, port = self._endpoint.split(":")
+        port = int(port)
+        while True:
+            try:
+                self._log.info(f"Connecting to MQTT broker at {self._endpoint}")
+                self._client.connect(hostname, port)
+            except Exception as e:
+                self._log.error(f"{e}. Retrying in {self._reconnect_delay}s...")
+                time.sleep(self._reconnect_delay)
+                continue
+            break
+
     def _ensure_registered(self, id):
         def _unregister(_):
             self._log.info(f"Removing device {id}")
@@ -77,7 +91,5 @@ class MQTTDiscoveryService:
     async def start(self):
         async with asyncio.TaskGroup() as tg:
             self._task_group = tg
-            endpoint = f"{self._hostname}:{self._port}"
-            self._log.info(f"Connecting to MQTT broker at {endpoint}")
             coroutine = self._client.loop_forever_async()
             self._main_task = tg.create_task(coroutine)

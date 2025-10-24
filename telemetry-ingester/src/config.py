@@ -15,9 +15,9 @@ class Config:
         self.LOG_LEVEL = c["log"]
 
         mosquitto = c["mosquitto"]
-        self.MOSQUITTO_HOSTNAME = mosquitto["endpoint"].split(":")[0]
-        self.MOSQUITTO_PORT = int(mosquitto["endpoint"].split(":")[1])
+        self.MOSQUITTO_ENDPOINT = mosquitto["endpoint"]
         self.MOSQUITTO_TOPICS = mosquitto["topics"]
+        self.MOSQUITTO_RECONNECT_DELAY = mosquitto["reconnect_delay"]
 
         chirpstack = c["chirpstack"]
         self.CHIRPSTACK_ENDPOINT = chirpstack["endpoint"]
