@@ -104,7 +104,9 @@ class FrameLogItemToRecordsFormatter:
             rx = {"rx_info." + k: v for k, v in _flatten_nested_dict(rx).items()}
             p = _new_point_dict(time, "device_uplink_frame_log", tags | rx)
             for field, type in self.UPLINK_FIELDS:
-                p["fields"][field] = p["tags"].pop(field)
+                if field not in p["tags"]:
+                    self._log.warning(f"{field} field not found in uplink data")
+                p["fields"][field] = p["tags"].pop(field, None)
                 p["field_types"][field] = type
             records.append(p)
 

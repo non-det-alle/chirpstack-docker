@@ -52,7 +52,7 @@ class MQTTDiscoveryService:
                 dev_eui = message.topic.split("/")[3]
                 self._ensure_registered(dev_eui)
             except Exception as e:
-                self._log.exception(f"Error processing MQTT message: {e}")
+                self._log.error(f"Error processing MQTT message: {e}")
 
         def _on_disconnect(client, userdata, flags, rc, properties):
             if rc != 0:
