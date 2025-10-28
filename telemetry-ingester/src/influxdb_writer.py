@@ -35,4 +35,4 @@ class InfluxDBWriter:
             assert await self._write_api.write(self._bucket, record=points)
             self._log.debug(f"Written to InfluxDB: {records}")
         except Exception as e:
-            self._log.exception(f"Failed to write to InfluxDB: {e}")
+            self._log.error(f"Failed to write to InfluxDB: {e}")
