@@ -1,10 +1,8 @@
 import os
 import sys
-import asyncio
 
-from src.mqtt_discovery_service import MQTTDiscoveryService
-from src.grpc_stream_reader import GRPCDeviceFramesReader
-from src.formatting import FrameLogItemToRecordsFormatter
+from src.redis_reader import RedisReader
+from src.logs_formatter import LogsFormatter
 from src.influxdb_writer import InfluxDBWriter
 from src.logger import global_logger as logger
 from src.config import settings
@@ -19,15 +17,11 @@ def main():
     settings.load(sys.argv[2])
     logger.setLevel(settings.LOG_LEVEL)
 
-    async def _run():
-        async with InfluxDBWriter() as writer:
-            with FrameLogItemToRecordsFormatter(writer.write) as formatter:
-                async with GRPCDeviceFramesReader(formatter.format) as reader:
-                    with MQTTDiscoveryService(reader.read) as service:
-                        await service.start()
-
     try:
-        asyncio.run(_run())
+        with InfluxDBWriter() as writer:
+            with LogsFormatter(writer.write) as formatter:
+                with RedisReader(formatter.format) as reader:
+                    reader.read_forever()
     except KeyboardInterrupt:
         logger.info("Service interrupted. Shutting down...")
 

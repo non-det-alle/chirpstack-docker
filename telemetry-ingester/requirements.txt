@@ -1,5 +1,6 @@
 # requirements.txt
 
-influxdb-client[async]==1.49.0
-paho-mqtt==2.1.0
-toml==0.10.2
+chirpstack-api==4.6.0
+influxdb-client==1.49.0
+redis[hiredis]==7.0.1
+lorawan-decoder

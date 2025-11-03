@@ -1,13 +1,14 @@
-FROM python:3.11.0 AS builder
+FROM python:3.14-alpine3.22 AS builder
 
 ARG API_VERSION
 
-RUN git clone --depth=1 -b $API_VERSION https://github.com/non-det-alle/chirpstack.git
-RUN cd chirpstack/api/python && make all
+COPY lorawan-decoder/ lorawan-decoder/
 
-RUN python3 -c "import google.protobuf as pb; print(f'protobuf=={pb.__version__}')" > protobuf.txt
+RUN apk add --no-cache build-base && \
+    sed -i 's/^lrwn = { tag = "[^"]*/lrwn = { tag = "'$API_VERSION'/' lorawan-decoder/Cargo.toml && \
+    pip wheel -v -w wheels/ lorawan-decoder/
 
-FROM python:alpine3.22
+FROM python:3.14-alpine3.22
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -15,14 +16,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY requirements.txt .
-COPY --from=builder chirpstack/api/python/src/ chirpstack_api/
-COPY --from=builder protobuf.txt .
 
-RUN apk add --no-cache tini && \
-    cat protobuf.txt >> requirements.txt && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir chirpstack_api/ && \
-    rm -rf chirpstack_api/ protobuf.txt
+RUN --mount=type=bind,from=builder,source=/wheels,target=/wheels \
+    apk add --no-cache tini libgcc && \
+    pip install --no-cache-dir /wheels/*.whl && \
+    pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/
 COPY start.py .

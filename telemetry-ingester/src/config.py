@@ -1,26 +1,16 @@
-import os
-
-import toml
+import tomllib
 
 
 class Config:
-    # static configurations
-    with open(os.environ["CHIRPSTACK_API_TOKEN_FILE"], "r") as f:
-        CHIRPSTACK_TOKEN = f.readline().rstrip("\n")
-
-    # runtime configurations
     def load(self, path: str):
-        c = toml.load(path + "/config.toml")
+        with open(path + "/config.toml", "rb") as f:
+            c = tomllib.load(f)
 
         self.LOG_LEVEL = c["log"]
 
-        mosquitto = c["mosquitto"]
-        self.MOSQUITTO_ENDPOINT = mosquitto["endpoint"]
-        self.MOSQUITTO_TOPICS = mosquitto["topics"]
-        self.MOSQUITTO_RECONNECT_DELAY = mosquitto["reconnect_delay"]
-
-        chirpstack = c["chirpstack"]
-        self.CHIRPSTACK_ENDPOINT = chirpstack["endpoint"]
+        redis = c["redis"]
+        self.REDIS_URL = "redis://" + redis["endpoint"]
+        self.REDIS_STREAM = redis["stream"]
 
         influxdb = c["influxdb"]
         self.INFLUXDB_URL = "http://" + influxdb["endpoint"]
