@@ -1,4 +1,3 @@
-from influxdb_client.client.influxdb_client_async import InfluxDBClientAsync
 from influxdb_client.client.influxdb_client import InfluxDBClient
 from influxdb_client.client.write_api import SYNCHRONOUS
 from influxdb_client.client.write.point import Point
@@ -17,22 +16,19 @@ class InfluxDBWriter:
         self._log = getLogger(self.__class__.__name__)
         self._log.setLevel(log_level if log_level else settings.LOG_LEVEL)
 
-        self._client = InfluxDBClientAsync(self._url, self._token, self._org)
-        self._write_api = self._client.write_api()
+        self._client = InfluxDBClient(self._url, self._token, org=self._org)
+        self._write_api = self._client.write_api(SYNCHRONOUS)
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_value, traceback) -> None:
-        await self.close()
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        self._client.close()
 
-    async def close(self):
-        await self._client.close()
-
-    async def write(self, records: list[dict]):
+    def write(self, records: list[dict]):
         try:
             points = [Point.from_dict(p) for p in records]
-            assert await self._write_api.write(self._bucket, record=points)
-            self._log.debug(f"Written to InfluxDB: {records}")
+            self._log.debug(f"Writing records to InfluxDB: {records}")
+            self._write_api.write(self._bucket, record=points)
         except Exception as e:
-            self._log.error(f"Failed to write to InfluxDB: {e}")
+            self._log.error(f"Failed to write to InfluxDB: {type(e)}")

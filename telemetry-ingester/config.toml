@@ -2,25 +2,14 @@
 log = "INFO"
 
 
-# MQTT broker for event-based device discovery
-[mosquitto]
+# Redis database for sourcing frame data
+[redis]
 
-# The endpoint of ChirpStack's MQTT broker
-endpoint = "localhost:1883"
+# The endpoint of ChirpStack's Redis instance
+endpoint = "localhost:6379"
 
-# MQTT subscription topic(s)
-# https://www.chirpstack.io/docs/chirpstack/integrations/mqtt.html
-topics = "application/#"
-
-# On initial connection failure, amount of seconds before trying again
-reconnect_delay = 60
-
-
-# LoRaWAN network server to source frame logs
-[chirpstack]
-
-# This must point to ChirpStack's gRPC API interface.
-endpoint = "localhost:8080"
+# The Redis data stream to read from
+stream = "device:stream:frame"
 
 
 # Time-series database for the metrics collection system
@@ -33,7 +22,7 @@ endpoint = "localhost:8086"
 token = "token"
 
 # InfluxDB organization
-org = "cnam"
+org = "organization"
 
 # InfluxDB bucket where data is stored
 bucket = "chirpstack"
