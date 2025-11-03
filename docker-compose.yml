@@ -91,6 +91,8 @@ services:
       DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: token
       DOCKER_INFLUXDB_INIT_ORG: cnam
       DOCKER_INFLUXDB_INIT_BUCKET: chirpstack
+      INFLUXD_SESSION_RENEW_DISABLED: true
+      INFLUXD_SESSION_LENGTH: 1440
 
   config-server:
     build: 
