@@ -5,7 +5,7 @@
 endpoint = "chirpstack:8080"
 
 # The tenant id (retrieved using the web-interface)
-tenant_name = "ELoRa 1"
+tenant_name = "ELoRa-1"
 
 # Time-series database for the metrics collection system
 [influxdb2]

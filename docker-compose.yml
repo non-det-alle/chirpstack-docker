@@ -98,7 +98,7 @@ services:
     profiles: ["all"]
 
   elora:
-    image: nondetalle/elora:latest
+    image: nondetalle/elora:0.2.2
     cap_add: [NET_ADMIN]
     secrets: [chirpstack-api-token]
     environment: 
