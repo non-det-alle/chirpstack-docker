@@ -63,13 +63,13 @@ services:
     restart: unless-stopped
     ports:
       - "1883:1883"
-    volumes: 
+    volumes:
       - ./configuration/mosquitto/config/:/mosquitto/config/
 
   telemetry-ingester:
     build:
       context: ./telemetry-ingester
-      args: 
+      args:
         API_VERSION: v4.14.0+cs.3
     command: -c /etc/telemetry-ingester
     restart: unless-stopped
@@ -95,14 +95,14 @@ services:
       INFLUXD_SESSION_LENGTH: 1440
 
   config-server:
-    build: 
+    build:
       context: ./config-server
-      args: 
+      args:
         API_VERSION: v4.14.0+cs.3
     command: -c /etc/config-server
     restart: unless-stopped
-    secrets: [chirpstack-api-token]
-    environment: 
+    secrets: [ chirpstack-api-token ]
+    environment:
       CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
       - ./configuration/config-server:/etc/config-server
@@ -110,13 +110,13 @@ services:
     depends_on:
       - chirpstack
       - influxdb
-    profiles: ["all"]
+    profiles: [ "all" ]
 
   elora:
     image: nondetalle/elora:latest
-    cap_add: [NET_ADMIN]
-    secrets: [chirpstack-api-token]
-    environment: 
+    cap_add: [ NET_ADMIN ]
+    secrets: [ chirpstack-api-token ]
+    environment:
       CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
       - ./configuration/elora/elora.toml:/home/elora/configuration.toml
@@ -125,7 +125,7 @@ services:
     depends_on:
       - chirpstack-rest-api
       - chirpstack-gateway-bridge
-    profiles: ["all"]
+    profiles: [ "all" ]
 
 secrets:
   chirpstack-api-token:
