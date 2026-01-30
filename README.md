@@ -1,72 +1,61 @@
 # A distributed control loop infrastructure for dynamic LoRaWAN management
 
-From [`config-server/src/start.py`](config-server/src/start.py):
-
 ```text
             CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM                
 
-                       _________________                  _________________
-                      |                 |  [3] past      |                 |
-                      |  Config Server  |      metrics   | Metrics Storage |
-                      |     (this)      | <------------- |    (influxdb)   |
-                      |_________________|                |_________________|
-                        ^           ^ \                    ^
-                       /             \ \                  /
-       [2.a] uplink   /    [4] device \ \ [5] new        / [2.b] uplink
-             metrics /         state & \ \    configs   /        metrics
-                    /          configs  \ \            /
-                   /                     \ \          /
-                  /                       \ v        /
-       _____________                    ________________
-      |             |   [1] uplink     |                |
-      |             | ---------------> |                |
-      |             | <--------------- |                |
-      | MQTT Broker |   [2.a] uplink   | LoRaWAN Server |
-      | (mosquitto) |         metrics  |  (chirpstack)  |
-      |             |                  |                |
-      |             | <--------------- |                |
-      |_____________|   [6] downlink   |________________|
-         / / | \ \
-        /         \
-       /           \
-      /             \
-    GW_1   . . .   GW_n   Gateways
-
-   ~~~ Radio channel ~~~
-
-     ED_1  . . .  ED_m    End Devices
+                     _________________                  _________________
+                    |                 |  [2] past      |                 |
+                    |  Config Server  |      metrics   | Metrics Storage |
+                    |     (this)      | <------------- |    (influxdb)   |
+                    |_________________|                |_________________|
+                        ^ /                                ^
+                       / /                                /
+        [3] device    / / [4] new device                 / [1.b] uplink &
+            state &  / /      configs                   /        downlink
+            configs / /                                /         frame logs
+                   / /                                /
+                  / v                                /
+       ________________                      ____________________  
+      |                |                    |                    |
+      |                | -----------------> | Telemetry Ingester |
+      |                |  [1.a] uplink &    |       (this)       |
+      | LoRaWAN Server |        downlink    |____________________|
+      |  (chirpstack)  |        frame logs
+      |                |
+      |                |
+      |________________|
+           / / | \ \
+          /         \
+         /           \
+        /             \
+      GW_1   . . .   GW_n   Gateways
+  
+     ~~~ Radio channel ~~~
+  
+       ED_1  . . .  ED_m    End Devices
 
 
  Communication protocols:
- - MQTT [1], [2.a], [6]
- - REST [2.b], [3]
- - gRPC [4], [5]
+ - RESP [1.a]
+ - REST [1.b], [2]
+ - gRPC [3], [4]
 
  Detailed overview:
- [1] uplink: uplink message received from a gateway being relayed to
-     ChirpStack by the MQTT broker.
- [2] uplink metrics: message metadata being distpatched by ChirpStack to the
-     Config Server (via MQTT topic subscription [2.a]) and to the Metrics
-     Storage (via InfluxDB REST API [2.b]).
- [3] past metrics: past uplink records and metrics being queried by the Config
-     Server (using the InfluxDB REST API and the Flux query language).
-     Metrics aggregation can happen either in the Storage using Flux queries,
-     or directly in the Config Server (less optimal in distributed settings).
+ [1] uplink & downlink frame logs: packet metadata streamed from ChirpStack's
+     logging backend (via REdis Serialization Protocol (RESP) [1.a]) and
+     forwarded to the Metrics Storage function (via InfluxDB REST API [1.b]) by
+     the Telemetry Ingester.
+ [2] past metrics: past records and metrics being queried by the Config Server
+     (using the InfluxDB REST API and the Flux query language). Metrics
+     aggregation can happen either in the Storage using Flux queries, or
+     directly in the Config Server (less optimal in distributed settings).
  [4] device state & configs: known parameter state of the device and current
      configuration stored in the server, obtained using ChirpStack's gRPC API.
      Together with traffic metrics, this information should be used in the
-     decision making process to evaluate if a needed configuration is
-     compatible or needed by the device.
- [5] new config: new configuration for the device sent by the Config Server to
-     ChirpStack's device configuration storage (via gRPC API). This should be
-     skipped if no configuration is needed.
- [6] downlink: downlink message from ChirpStack to a device. This message is
-     relayed by the MQTT broker to the correct gateway, that will send it over
-     the Radio channel at the right time to meet the reception window of the
-     device. New configurations are inserted in the downlink packet:
-     ChirpStack has a dedicated parameter to increase the amount of time it
-     will wait before creating the downlink, allowing for configurations to be
-     added.
+     decision making process to evaluate if a desired configuration is
+     compatible with or needed for the device.
+ [4] new device config: new configuration for the device sent by the Config
+     Server to ChirpStack's device configuration storage (via gRPC API).
 ```
 
 ## Prerequisites

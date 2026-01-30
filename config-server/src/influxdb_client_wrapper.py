@@ -17,25 +17,47 @@ class InfluxDBClientWrapper:
     def __exit__(self, exc_type, exc_value, traceback):
         self.client.close()
 
-    def get_uplink_records(
-        self, dev_eui: str, start: str, stop: str = "now()"
+    def get_records(
+        self,
+        start: str,
+        stop: str = "now()",
+        dev_eui: str | list[str] | None = None,
+        direction: str = "u",
     ) -> pd.DataFrame:
-        """Get DataFrame cointaining database records on uplink frames for a device.
+        """Get DataFrame containing frame_log records of frames.
 
         Args:
-            dev_eui: EUI identifier of a device we want to query data of.
-            start: Start time of the time windows of data to be retrieved. Can be relative duration, absolute time, or integer (Unix timestamp in seconds). For example, "-1h", "2019-08-28T22:00:00Z", or "1567029600".
+            start: Start time of the time windows of data to be retrieved. Can be
+                relative duration, absolute time, or integer (Unix timestamp in seconds).
+                For example, "-1h", "2019-08-28T22:00:00Z", or "1567029600".
             stop (optional): See start for possible values. Defaults to "now()".
+            dev_eui: EUI identifier for a device (or list of) to query data for.
+            direction: Whether to pull uplink ('u'), downlink ('d') or both ('b') traffic
+                records.
         """
-        query = f'from(bucket: "{self.bucket}") \
-            |> range(start: {start}, stop: {stop}) \
-            |> filter(fn: (r) => r._measurement == "device_uplink") \
-            |> filter(fn: (r) => r.dev_eui == "{dev_eui}") \
-            |> filter(fn: (r) => r._field != "value") \
-            |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")'
-        df = self.query_api.query_data_frame(query, org=self.org)
-        if not isinstance(df, pd.DataFrame):
-            raise ValueError("Queried object is not a DataFrame")
+
+        query = f'from(bucket: "{self.bucket}") |> range(start: {start}, stop: {stop})'
+
+        if dev_eui:
+            if type(dev_eui) == str:
+                dev_eui = [dev_eui]
+            fmt = "[" + ",".join([f'"{v}"' for v in dev_eui]) + "]"
+            query += f" |> filter(fn: (r) => contains(value: r.dev_eui, set: {fmt}))"
+
+        if direction == "u":
+            query += (
+                ' |> filter(fn: (r) => r._measurement == "device_uplink_frame_log")'
+                ' |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")'
+                " |> group()"
+            )
+        elif direction == "d":
+            query += (
+                ' |> filter(fn: (r) => r._measurement == "device_downlink_frame_log")'
+                ' |> drop(columns: ["_field", "_value"])'
+                " |> group()"
+            )
+
+        df = pd.DataFrame(self.query_api.query_data_frame(query, org=self.org))
         if df.empty:
             raise ValueError("Not enough records in the database.")
         return (

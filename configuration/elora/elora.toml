@@ -62,14 +62,14 @@ periods = 24
 #   3 = 19 gateways
 #   ...
 #
-rings = 2
+rings = 1
 
 # Radius of the device allocation disk around a gateway
 # (range * 2 = gateway distance)
 range = 2540.25
 
 # Number of end devices to include in the simulation
-devices = 10
+devices = 1
 
 # Signal to Interference Ratio matrix used for interference
 # 
@@ -79,10 +79,10 @@ sir = "GOURSAUD"
 
 # Whether to pre-initialize the SFs of devices before starting the sumulation
 # (uses a conservative version of the default ADR algorithm, without power management)
-initSF = false
+initSF = true
 
 # Whether to enable the ADR bit 
-adr = false
+adr = true
 
 # Use realistic urban M2M traffic instead of test devices (5s period, 5B payload) 
 real = false
