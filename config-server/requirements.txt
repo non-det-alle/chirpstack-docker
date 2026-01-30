@@ -1,6 +1,5 @@
 # requirements.txt
 
 influxdb-client
-paho-mqtt
 pandas
 toml

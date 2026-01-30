@@ -12,35 +12,35 @@ To evaluate the state of the network, the Config Server can retrieve metrics of 
 
 To get metadata of the past uplink transmission for a device, we provide a function with the following signature:
 
-- `get_uplink_records(dev_eui: str, start: str, stop: str = "now()") -> pandas.DataFrame`:
+- `get_records(start: str, stop: str = "now()", dev_eui: str | list[str] | None = None, direction: str = "u") -> pandas.DataFrame`:
 
-    Get DataFrame cointaining database records on uplink frames for a device.
+    Get DataFrame containing frame_log records of frames.
 
     Arguments:
 
-  - `dev_eui`: EUI identifier of a device we want to query data of.
   - `start`: Start time of the time windows of data to be retrieved. Can be relative duration, absolute time, or integer (Unix timestamp in seconds). For example, "-1h", "2019-08-28T22:00:00Z", or "1567029600".
   - `stop` (optional): See start for possible values. Defaults to "now()".
+  - `dev_eui`: EUI identifier for a device (or list of) to query data for.
+  - `direction`: Whether to pull uplink ('u'), downlink ('d') or both ('b') traffic records.
 
 Internally, the function sends a [Flux query](https://docs.influxdata.com/flux/v0/) to the database and does some minor processing on the output.
 
-The [output dataframe](assets/uplink_events.csv) will look like this:
+The [output dataframe](assets/uplink_frame_logs.csv) will look like this:
 
-![dataset screenshot](assets/uplink_events.png "Uplink Events")
+![dataset screenshot](assets/uplink_frame_logs.png "Uplink Frame Logs")
 
-All entries are already sorted by `_time`. DataFrame fields explanation:
+DataFrame fields explanation:
 
-- `_time` (`numpy.datetime64[ns, UTC]`, index): Timestamp of reception at the telemetry layer
 - `_start`/`_stop` (`numpy.datetime64[ns, UTC]`): Begin/end timestamp of the queried time window of this dataset (same for all records)
-- `_measurement` (`str`): Internal record type tag of the telemetry layer (same for all records)
-- `application_name` (`str`): LNS application tag for this device (same for all records)
-- `dev_eui` (`str`): LoRaWAN DevEUI of the source device (same for all records)
-- `device_name` (`str`): Name assigned to the source device in the LNS (same for all records)
-- `dr` (`str`): LoRaWAN data rate setting used for the transmission of this uplink message
-- `frequency` (`str`): Channel frequency [Hz] used the transmission of this uplink message
-- `f_cnt` (`numpy.int64`): LoRaWAN frame counter of this uplink message
-- `rssi` (`numpy.int64`): Received Signal Strenght Indicator (RSSI) [dBm] measured during the reception of this uplink message
-- `snr` (`numpy.float64`): Signal to Noise Ratio (SNR) [dB] measured during the reception of this uplink message
+- `_time` (`numpy.datetime64[ns, UTC]`, index): Timestamp of reception at the telemetry layer
+- `_measurement` (`str`): Internal record type tag of the telemetry layer
+- `dev_eui` (`str`): LoRaWAN DevEUI of the source device
+- `log_id` (`str`): Identifier of the frame, same for all receptions of a unique packet by different gateways
+- `phy_payload.<subfield>` LoRaWAN packet fields
+- `tx_info.<subfield>`: Transmission parameters, see [uplink](https://github.com/chirpstack/chirpstack/blob/b859a561507b51261474baed20aa6ebb8d193619/api/proto/gw/gw.proto#L215-L221) / [downlink](https://github.com/chirpstack/chirpstack/blob/b859a561507b51261474baed20aa6ebb8d193619/api/proto/gw/gw.proto#L532-L554) proto definition
+- `rx_info.<subfield>` (uplink-only): Reception data, see [proto definition](https://github.com/chirpstack/chirpstack/blob/b859a561507b51261474baed20aa6ebb8d193619/api/proto/gw/gw.proto#L432-L483)
+
+**IMPORTANT:** Each duplicated reception of a unique uplink packet is stored as a new row (what changes are the fields under the `rx_info` section).
 
 The Config Server can use this data to produce aggregated metrics to be used in the decision making process. See the [section](#example-code) below for an example computing the Packet Delivery Ratio (PDR).
 
@@ -94,30 +94,29 @@ The underlying gRPC API uses lower level functions and structures (e.g. `api.Dev
 
 ## Example code
 
-The following code excerpt represent the core logic of the example config-store function implemented in [start.py](../config-server/src/start.py). It is executed on signal reception from the LNS MQTT broker (see line 2.a from the [README file](../README.md)).
+The following code excerpt represent the core logic of the example config-store function implemented in [start.py](../config-server/src/start.py). It is executed on periodically, but it could also be triggered signal reception from the LNS MQTT broker (see v1 of the control loop).
 
 ```py
-# this is what's called when an uplink is detected
-def on_uplink(mqtt_client: mqtt.Client, userdata, message: mqtt.MQTTMessage):
-    print(f"\n\n{message.topic}")
-    uplink_event = Parse(message.payload, UplinkEvent())
-    dev_eui = uplink_event.device_info.dev_eui
-
+def healthcheck(dev_eui: str):
     ##############################################
     # Making use of the data collection pipeline #
     ##############################################
     try:
-        uplink_records = db_client.get_uplink_records(dev_eui, f"-{history}")
+        uplink_records = db_client.get_records(f"-{history}", dev_eui=dev_eui)
     except ValueError as e:
         print(f"{e} Postponed.")
         return
-    # Time series of frame counters
-    f_cnts = uplink_records["f_cnt"].astype(int)
-    # Add latest record if missing
-    if f_cnts.iat[-1] != uplink_event.f_cnt:
-        # avoid gw reception time (uplink_event.time), it can mess up order
-        f_cnts[pd.Timestamp.now("UTC")] = uplink_event.f_cnt
-        f_cnts = f_cnts.sort_index()
+
+    fcnt_col = "phy_payload.payload.fhdr.f_cnt"
+    # Remove null-values, if any
+    uplink_records = uplink_records.dropna(subset=fcnt_col)
+    # Deduplicate multi-RX rows
+    uplink_records = uplink_records.groupby(["_time", "log_id"]).first()
+    # Sort by timestamp
+    uplink_records = uplink_records.sort_values("_time")
+    # Time-sorted list of frame counters
+    f_cnts = uplink_records[fcnt_col].astype(int)
+
     # Compute Packet Delivery Ratio (PDR)
     recv = f_cnts.count()
     sent = f_cnts.diff()
@@ -137,8 +136,6 @@ def on_uplink(mqtt_client: mqtt.Client, userdata, message: mqtt.MQTTMessage):
     if not cs_client.is_chmask_compatible(chmask, dev_eui):
         print(f"Configuration not compatible (chmask: {chmask})")
         return
-    # Set chmask
-    time.sleep(2)  # comment out for immediate chmask configuration
     # Set chmask
     cs_client.set_chmask_for_device(chmask, dev_eui)
 ```

@@ -10,15 +10,19 @@ class ChirpStackClient:
 
     def __enter__(self):
         self.channel = grpc.insecure_channel(self.endpoint)
-        self.config_store_api = api.DeviceConfigStoreServiceStub(self.channel)
+        self.tenant_api = api.TenantServiceStub(self.channel)
+        self.application_api = api.ApplicationServiceStub(self.channel)
+        self.device_api = api.DeviceServiceStub(self.channel)
+        self.device_profile_api = api.DeviceProfileServiceStub(self.channel)
+        self.device_config_store_api = api.DeviceConfigStoreServiceStub(self.channel)
+        self.gateway_api = api.GatewayServiceStub(self.channel)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.channel.close()
 
     def get_tenant_id(self, tenant_name: str) -> str:
-        tenant_api = api.TenantServiceStub(self.channel)
-        resp: api.ListTenantsResponse = tenant_api.List(
+        resp: api.ListTenantsResponse = self.tenant_api.List(
             api.ListTenantsRequest(search=tenant_name, limit=100),
             metadata=self.metadata,
         )
@@ -29,8 +33,7 @@ class ChirpStackClient:
         return tenant_id
 
     def get_application_ids(self, tenant_id: str) -> list[str]:
-        application_api = api.ApplicationServiceStub(self.channel)
-        resp: api.ListApplicationsResponse = application_api.List(
+        resp: api.ListApplicationsResponse = self.application_api.List(
             api.ListApplicationsRequest(tenant_id=tenant_id, limit=100),
             metadata=self.metadata,
         )
@@ -41,12 +44,11 @@ class ChirpStackClient:
         return app_ids
 
     def get_dev_euis(self, application_id: str) -> list[str]:
-        device_api = api.DeviceServiceStub(self.channel)
         page = 0
         dev_euis = []
         while True:
             offset = 100 * page
-            resp: api.ListDevicesResponse = device_api.List(
+            resp: api.ListDevicesResponse = self.device_api.List(
                 api.ListDevicesRequest(
                     application_id=application_id, limit=100, offset=offset
                 ),
@@ -59,9 +61,31 @@ class ChirpStackClient:
         print(f"Dev EUIs: {dev_euis}")
         return dev_euis
 
+    def get_device_list(self, application_id):
+        page = 0
+        device_list = []
+        while True:
+            offset = 100 * page
+            resp: api.ListDevicesResponse = self.device_api.List(
+                api.ListDevicesRequest(
+                    application_id=application_id, limit=100, offset=offset
+                ),
+                metadata=self.metadata,
+            )
+            device_list += MessageToDict(
+                resp,
+                always_print_fields_with_no_presence=True,
+                preserving_proto_field_name=True,
+            )["result"]
+            if 100 * (page + 1) > resp.total_count:
+                break
+            page += 1
+        print(f"Devices: {device_list}")
+        return device_list
+
     def set_device_config(self, config_store: api.DeviceConfigStore) -> None:
         try:
-            self.config_store_api.Set(
+            self.device_config_store_api.Set(
                 api.SetDeviceConfigStoreRequest(device_config_store=config_store),
                 metadata=self.metadata,
             )
@@ -74,7 +98,7 @@ class ChirpStackClient:
 
     def get_device_config(self, dev_eui: str) -> api.DeviceConfigStore | None:
         try:
-            resp: api.GetDeviceConfigStoreResponse = self.config_store_api.Get(
+            resp: api.GetDeviceConfigStoreResponse = self.device_config_store_api.Get(
                 api.GetDeviceConfigStoreRequest(dev_eui=dev_eui),
                 metadata=self.metadata,
             )
@@ -88,7 +112,7 @@ class ChirpStackClient:
 
     def delete_device_config(self, dev_eui: str) -> None:
         try:
-            self.config_store_api.Delete(
+            self.device_config_store_api.Delete(
                 api.DeleteDeviceConfigStoreRequest(dev_eui=dev_eui),
                 metadata=self.metadata,
             )
@@ -104,11 +128,13 @@ class ChirpStackClient:
         dev_euis = []
         while True:
             offset = 100 * page
-            resp: api.ListDeviceConfigStoresResponse = self.config_store_api.List(
-                api.ListDeviceConfigStoresRequest(
-                    application_id=application_id, limit=100, offset=offset
-                ),
-                metadata=self.metadata,
+            resp: api.ListDeviceConfigStoresResponse = (
+                self.device_config_store_api.List(
+                    api.ListDeviceConfigStoresRequest(
+                        application_id=application_id, limit=100, offset=offset
+                    ),
+                    metadata=self.metadata,
+                )
             )
             dev_euis += [dev.dev_eui for dev in resp.result]
             if 100 * (page + 1) > resp.total_count:
@@ -120,7 +146,7 @@ class ChirpStackClient:
     def get_device_config_alignment(self, dev_eui: str) -> api.ConfigStoreAlignment:
         try:
             resp: api.GetConfigStoreAlignmentResponse = (
-                self.config_store_api.GetConfigStoreAlignment(
+                self.device_config_store_api.GetConfigStoreAlignment(
                     api.GetConfigStoreAlignmentRequest(dev_eui=dev_eui),
                     metadata=self.metadata,
                 )
@@ -143,7 +169,7 @@ class ChirpStackClient:
     ) -> list[int]:
         # Check available uplink channels
         resp: api.GetAvailableChannelsResponse = (
-            self.config_store_api.GetAvailableUplinkChannels(
+            self.device_config_store_api.GetAvailableUplinkChannels(
                 api.GetAvailableChannelsRequest(dev_eui=dev_eui), metadata=self.metadata
             )
         )
@@ -173,4 +199,3 @@ class ChirpStackClient:
 
     def is_device_chmask_aligned(self, dev_eui: str) -> bool:
         return self.get_device_config_alignment(dev_eui).chmask_config
-

@@ -101,14 +101,14 @@ main(int argc, char* argv[])
     if (log)
     {
         //!> Requirement: build ns3 with debug option
-        LogComponentEnable("UdpForwarder", LOG_LEVEL_DEBUG);
+        // LogComponentEnable("UdpForwarder", LOG_LEVEL_DEBUG);
         // LogComponentEnable("ChirpStackHelper", LOG_LEVEL_DEBUG);
         // LogComponentEnable("RestApiHelper", LOG_LEVEL_DEBUG);
-        LogComponentEnable("ClassAEndDeviceLorawanMac", LOG_LEVEL_INFO);
-        LogComponentEnable("BaseEndDeviceLorawanMac", LOG_LEVEL_INFO);
+        // LogComponentEnable("ClassAEndDeviceLorawanMac", LOG_LEVEL_INFO);
+        LogComponentEnable("BaseEndDeviceLorawanMac", LOG_LEVEL_DEBUG);
         // LogComponentEnable ("LoraFrameHeader", LOG_LEVEL_INFO);
         /* Monitor state changes of devices */
-        LogComponentEnable("EloraUtilities", LOG_LEVEL_ALL);
+        // LogComponentEnable("EloraUtilities", LOG_LEVEL_ALL);
         /* Formatting */
         LogComponentEnableAll(LOG_PREFIX_FUNC);
         LogComponentEnableAll(LOG_PREFIX_NODE);
@@ -268,7 +268,7 @@ main(int argc, char* argv[])
         {
             PeriodicSenderHelper appHelper;
             appHelper.SetPeriodGenerator(
-                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(60.0)));
+                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
             appHelper.SetPacketSizeGenerator(
                 CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
             appHelper.Install(endDevices);
