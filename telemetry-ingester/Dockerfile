@@ -10,6 +10,8 @@ RUN apk add --no-cache build-base && \
 
 FROM python:3.14-alpine3.22
 
+ARG API_VERSION
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -20,6 +22,7 @@ COPY requirements.txt .
 RUN --mount=type=bind,from=builder,source=/wheels,target=/wheels \
     apk add --no-cache tini libgcc && \
     pip install --no-cache-dir /wheels/*.whl && \
+    sed -i s/chirpstack-api==.*/chirpstack-api==${API_VERSION}/ requirements.txt && \
     pip install --no-cache-dir -r requirements.txt
 
 COPY src/ src/

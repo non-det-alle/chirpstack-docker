@@ -1,6 +1,6 @@
 # requirements.txt
 
-chirpstack-api==4.14.0
+chirpstack-api==4.16.2
 influxdb-client==1.49.0
 redis[hiredis]==7.0.1
 lorawan-decoder
