@@ -9,6 +9,9 @@ RUN python3 -c "import google.protobuf as pb; print(f'protobuf=={pb.__version__}
 
 FROM python:alpine
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 COPY --from=builder /chirpstack/api/python/src /chirpstack_api
 COPY --from=builder /protobuf.txt /
 COPY requirements.txt /

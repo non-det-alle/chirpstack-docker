@@ -2,12 +2,13 @@ import signal
 import sys
 import time
 import os
+from pprint import pprint as pp
 
-import pandas as pd
+from chirpstack_api.api import DeviceConfigStore
 import toml
 
 # ChirpStack API imports
-from chirpstack_client import ChirpStackClient
+from chirpstack_client import ChirpStackClient, to_dict
 
 # InfluxDB API imports
 from influxdb_client_wrapper import InfluxDBClientWrapper
@@ -81,7 +82,7 @@ def main():
         c["chirpstack"]["api_token"] = f.readline().rstrip("\n")
 
     # Number of seconds between reconfiguration triggers
-    period = 30
+    period = 5
 
     # Time frame for aggregation of metrics
     history = "30m"
@@ -116,10 +117,11 @@ def main():
             ##############################################
             # Making use of the data collection pipeline #
             ##############################################
-            try:
-                uplink_records = db_client.get_records(f"-{history}", dev_eui=dev_eui)
-            except ValueError as e:
-                print(f"{e} Postponed.")
+
+            uplink_records = db_client.get_records(f"-{history}", dev_eui=dev_eui)
+
+            if uplink_records.empty:
+                print("Not enough records in the database. Postponed.")
                 return
 
             fcnt_col = "phy_payload.payload.fhdr.f_cnt"
@@ -138,32 +140,63 @@ def main():
             # Manage f_cnt resets
             sent = sent.mask(sent < 0, None).fillna(1).sum()
             pdr = recv / sent
-            print(f"PDR of past {history}: {pdr} ({recv}/{int(sent)})")
+            print(f"{dev_eui} PDR of past {history}: {pdr} ({recv}/{int(sent)})")
 
             ####################################################
             # Giving ChirpStack configs for the LoRaWAN device #
             ####################################################
+
+            # Some random values for show. Each field is optional.
+            dr, tx_power_index, nb_trans, max_duty_cycle = (0, 2, 3, 7)
             # (Example: Restrict the number of channels if PDR is >70%)
             chmask = reduced_chmask if pdr >= 0.7 else list(range(8))
-            # Log current device configuration aligment
-            _ = cs_client.get_device_config_alignment(dev_eui)
-            # Check compatibility with installed channels
-            if not cs_client.is_chmask_compatible(chmask, dev_eui):
-                print(f"Configuration not compatible (chmask: {chmask})")
+            print(f"{dev_eui} ChMask config: {chmask}")
+
+            # Check if configuration is already good to go
+            if dev_eui in cs_client.list_configured_devices(application_id):
+                config_store = cs_client.get_device_config(dev_eui)
+                print(f"{dev_eui} GET DeviceConfigStore: {to_dict(config_store)}")
+                if chmask == config_store.enabled_uplink_channel_indices:
+                    # Log current device configuration aligment
+                    align = cs_client.get_device_config_alignment(dev_eui)
+                    print(f"{dev_eui} GET DeviceConfigAlignment: {to_dict(align)}")
+                    return
+
+            try:
+                # Check if configuration is compatible with installed channels
+                current_params = cs_client.get_device_current_params(dev_eui)
+                print(f"{dev_eui} GET DeviceCurrentParams: ", end=None)
+                pp(to_dict(current_params), width=120)
+                if any(ch not in current_params.channels.keys() for ch in chmask):
+                    print(f"{dev_eui} Configuration not compatible (chmask: {chmask})")
+                    return
+            except ValueError as e:
+                print(f"{e}. Postponed.")
                 return
-            # Set chmask
-            cs_client.set_chmask_for_device(chmask, dev_eui)
+
+            # Set chmask and other configs
+            config_store = DeviceConfigStore(
+                enabled_uplink_channel_indices=chmask,
+                dr=dr,
+                tx_power_index=tx_power_index,
+                nb_trans=nb_trans,
+                max_duty_cycle=max_duty_cycle,
+            )
+            print(f"{dev_eui} SET DeviceConfigStore({to_dict(config_store)})")
+            cs_client.set_device_config(dev_eui, config_store)
 
         @on_sigterm
         def cleanup():
             print("Cleaning up stored configurations")
             for dev_eui in cs_client.list_configured_devices(application_id):
                 cs_client.delete_device_config(dev_eui)
+                print(f"{dev_eui} DELETE DeviceConfigStore")
 
         try:
             while True:
                 # check if devices need reconfiguration
                 devices = cs_client.get_dev_euis(application_id)
+                print(f"\nDevice EUIs: {devices}")
                 [healthcheck(dev_eui) for dev_eui in devices]
                 time.sleep(period)
         except KeyboardInterrupt as e:

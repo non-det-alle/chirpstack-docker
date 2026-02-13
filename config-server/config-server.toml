@@ -2,7 +2,7 @@
 [chirpstack]
 
 # This must point to the API interface.
-endpoint = "chirpstack:8080"
+endpoint = "localhost:8080"
 
 # The tenant id (retrieved using the web-interface)
 tenant_name = "ELoRa 1"
@@ -11,7 +11,7 @@ tenant_name = "ELoRa 1"
 [influxdb]
 
 # The endpoint of your InfluxDB instance
-endpoint = "influxdb:8086"
+endpoint = "localhost:8086"
 
 # InfluxDB authentication token
 token = "token"

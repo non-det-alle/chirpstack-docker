@@ -58,11 +58,12 @@ class InfluxDBClientWrapper:
             )
 
         df = pd.DataFrame(self.query_api.query_data_frame(query, org=self.org))
-        if df.empty:
-            raise ValueError("Not enough records in the database.")
+
         return (
             df.drop(columns=["result", "table"])
             .set_index("_time")
             .drop_duplicates()
             .sort_index()
+            if not df.empty
+            else df
         )
