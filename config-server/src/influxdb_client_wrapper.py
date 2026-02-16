@@ -17,7 +17,7 @@ class InfluxDBClientWrapper:
     def __exit__(self, exc_type, exc_value, traceback):
         self.client.close()
 
-    def get_records(
+    def get_traffic_records(
         self,
         start: str,
         stop: str = "now()",

@@ -1,6 +1,6 @@
 import grpc
 from chirpstack_api import api
-from google.protobuf.json_format import MessageToDict
+from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message
 
 
@@ -48,9 +48,9 @@ class ChirpStackClient:
             return []
         return [app.id for app in resp.result]
 
-    def get_dev_euis(self, application_id: str) -> list[str]:
+    def list_devices(self, application_id) -> list[dict]:
         page = 0
-        dev_euis = []
+        device_list = []
         while True:
             offset = 100 * page
             resp: api.ListDevicesResponse = self.device_api.List(
@@ -59,11 +59,44 @@ class ChirpStackClient:
                 ),
                 metadata=self.metadata,
             )
-            dev_euis += [dev.dev_eui for dev in resp.result]
+            device_list += to_dict(resp)["result"]
             if 100 * (page + 1) > resp.total_count:
                 break
             page += 1
-        return dev_euis
+        return device_list
+
+    def list_dev_euis(self, application_id: str) -> list[str]:
+        return [d["dev_eui"] for d in self.list_devices(application_id)]
+
+    def get_device(self, dev_eui: str) -> dict:
+        try:
+            resp: api.GetDeviceResponse = self.device_api.Get(
+                api.GetDeviceRequest(dev_eui=dev_eui),
+                metadata=self.metadata,
+            )
+            return to_dict(resp)["device"]
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.NOT_FOUND:
+                # Trying to get non-existent device
+                print(f"ERROR: device not found (id: {dev_eui})")
+            raise e
+
+    def set_device_tags(self, dev_eui: str, tags: dict[str, str]) -> None:
+        try:
+            device = self.get_device(dev_eui) | {"tags": tags}
+            self.device_api.Update(
+                api.UpdateDeviceRequest(device=ParseDict(device, api.Device())),
+                metadata=self.metadata,
+            )
+        except grpc.RpcError as e:
+            if e.code() == grpc.StatusCode.NOT_FOUND:
+                # Trying to update non-existent device
+                print(f"ERROR: device not found (id: {dev_eui})")
+            raise e
+
+    #####################################################################################
+    ##                             DEVICE CONFIG STORE API                             ##
+    #####################################################################################
 
     def set_device_config(
         self, dev_eui: str, config_store: api.DeviceConfigStore
