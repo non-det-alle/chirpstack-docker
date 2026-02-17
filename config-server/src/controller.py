@@ -64,29 +64,22 @@ def compute_cluster_shares(demands: pd.DataFrame):
     return clusters
 
 
-def hard_isolation(shares: pd.DataFrame) -> dict[Any, int]:
-    cluster_shares = shares.to_dict()
-    cluster_freqs = {}
-    available_freqs = len(FREQUENCIES)
-    unserved_share = {k: 0 for k in cluster_shares}
-    # grant 1 to every clusters
-    for k, v in cluster_shares.items():
-        if v <= 1:
-            cluster_freqs[k] = 1
-            available_freqs -= 1
-    freqs_updated = available_freqs
-    for k, v in cluster_shares.items():
-        if v > 1:
-            # rescale on remaining freqs.
-            v = v / len(FREQUENCIES) * freqs_updated
-            unserved_share[k], freqs = np.modf(v)
-            cluster_freqs[k] = int(freqs)
-            available_freqs -= cluster_freqs[k]
-    while available_freqs > 0:
-        k = max(unserved_share, key=unserved_share.get)
+def hard_isolation(cluster_shares: pd.Series) -> pd.Series:
+    # grant 1 to each cluster with low share
+    cluster_freqs = (cluster_shares <= 1).astype(int)
+    available_freqs = len(FREQUENCIES) - cluster_freqs.sum()
+    # rescale shares on remaining frequencies
+    updated_shares = cluster_shares.mask(cluster_shares <= 1, 0)
+    updated_shares = updated_shares / len(FREQUENCIES) * available_freqs
+    # allocate interger part of shares
+    unserved_share, freqs = np.modf(updated_shares)
+    cluster_freqs += freqs
+    available_freqs -= int(freqs.sum())
+    # allocate fractional parts by magnitude
+    for _ in range(available_freqs):
+        k = unserved_share.idxmax()
         cluster_freqs[k] += 1
         unserved_share[k] = 0
-        available_freqs -= 1
     return cluster_freqs
 
 
