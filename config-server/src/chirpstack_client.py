@@ -1,5 +1,6 @@
 import grpc
 from chirpstack_api import api
+from chirpstack_api.api import DeviceConfigStore
 from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message
 

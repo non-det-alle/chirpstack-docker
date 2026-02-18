@@ -3,7 +3,7 @@ import scipy.special as sp
 import pandas as pd
 
 from config import *
-from chirpstack_client import ChirpStackClient
+from chirpstack_client import ChirpStackClient, DeviceConfigStore
 from influxdb_client_wrapper import InfluxDBClientWrapper
 
 
@@ -53,6 +53,18 @@ def get_devices() -> pd.DataFrame:
     devices = pd.DataFrame(device_list)[columns].set_index("dev_eui").sort_index()
     devices = devices.assign(cluster=[t["cluster"] for t in devices.pop("tags")])
     return devices
+
+
+def set_channel_mask_configs(configs: pd.Series):
+    with ChirpStackClient(CHIRPSTACK_ENDPOINT, CHIRPSTACK_TOKEN) as ns:
+        for dev_eui, chmask in configs.items():
+            config_store = DeviceConfigStore(enabled_uplink_channel_indices=chmask)
+            ns.set_device_config(str(dev_eui), config_store)
+
+
+def delete_channel_mask_configs(dev_euis: list[str]):
+    with ChirpStackClient(CHIRPSTACK_ENDPOINT, CHIRPSTACK_TOKEN) as ns:
+        _ = [ns.delete_device_config(d) for d in dev_euis]
 
 
 def get_traffic_records(since_seconds) -> pd.DataFrame:

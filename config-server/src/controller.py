@@ -1,16 +1,12 @@
-from typing import Any
-
-import numpy as np
-
 from utilities import *
+from globecom22 import globecom22
 
 print(CLUSTERS, "\n")
 
 EPOCH = 1 * 60 * 60  # seconds
 
 
-## manipulate records
-
+### TRAFFIC RECORDS
 records = get_traffic_records(EPOCH)
 print("len after get_traffic_records", len(records))
 records = clean_traffic_records(records)
@@ -26,8 +22,7 @@ records = records.assign(time_on_air=time_on_air)
 print(records)
 
 
-## aggregate device metrics
-
+### DEVICE METRICS
 devices = get_devices()
 # join SF data to devices
 spreading_factors = get_device_sf(records)
@@ -46,55 +41,13 @@ devices = devices.assign(throughput=throughput)
 offered_traffic = devices["time_on_air"] / EPOCH  # Erlang
 offered_traffic = offered_traffic / devices["pdr"]
 devices = devices.assign(offered_traffic=offered_traffic)
+
+
+### GLOBECOM CHMASK ASSIGN
+devices = globecom22(devices)
 print(devices)
 
+set_channel_mask_configs(devices["chmask"])
 
-### GLOBECOM
-
-
-def compute_cluster_shares(demands: pd.DataFrame):
-    # w_g,c: local traffic demand of a cluster
-    clusters = demands.groupby(["gateway_id", "cluster_id"])[["demand"]].sum()
-    # sum_c(w_g,c): total local traffic demand
-    gateway_demand = clusters.groupby("gateway_id")["demand"].sum()
-    clusters = clusters.join(gateway_demand.rename("gateway_demand"))
-    # w'_g,c: share of radio frequencies
-    freq_share = len(FREQUENCIES) * clusters["demand"] / clusters["gateway_demand"]
-    clusters = clusters.assign(freq_share=freq_share)
-    return clusters
-
-
-def hard_isolation(cluster_shares: pd.Series) -> pd.Series:
-    # grant 1 to each cluster with low share
-    cluster_freqs = (cluster_shares <= 1).astype(int)
-    available_freqs = len(FREQUENCIES) - cluster_freqs.sum()
-    # rescale shares on remaining frequencies
-    updated_shares = cluster_shares.mask(cluster_shares <= 1, 0)
-    updated_shares = updated_shares / len(FREQUENCIES) * available_freqs
-    # allocate interger part of shares
-    unserved_share, freqs = np.modf(updated_shares)
-    cluster_freqs += freqs
-    available_freqs -= int(freqs.sum())
-    # allocate fractional parts by magnitude
-    for _ in range(available_freqs):
-        k = unserved_share.idxmax()
-        cluster_freqs[k] += 1
-        unserved_share[k] = 0
-    return cluster_freqs
-
-
-def globecom(devices: pd.DataFrame):
-    df = devices.set_index("cluster")  # shallow copy
-    # append cluster id and max offered traffic
-    df = df.assign(cluster_id=CLUSTERS["id"], max_ot=CLUSTERS["max_ot"])
-    # compute device demands for radio resources
-    demands = df.assign(demand=(df["throughput"] / df["max_ot"]))
-    # compute clusters' frequency shares from device demands
-    clusters = compute_cluster_shares(demands)
-    # apply frequency share discretization algorithm
-    freq_alloc = clusters["freq_share"].groupby("gateway_id").transform(hard_isolation)
-    clusters = clusters.assign(freq_alloc=freq_alloc)
-    print(clusters)
-
-
-globecom(devices)
+input("\nPress enter to clean-up configs and terminate program...")
+delete_channel_mask_configs(list(devices.index))
