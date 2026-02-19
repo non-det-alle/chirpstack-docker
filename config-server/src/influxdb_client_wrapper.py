@@ -57,13 +57,4 @@ class InfluxDBClientWrapper:
                 " |> group()"
             )
 
-        df = pd.DataFrame(self.query_api.query_data_frame(query, org=self.org))
-
-        return (
-            df.drop(columns=["result", "table"])
-            .set_index("_time")
-            .drop_duplicates()
-            .sort_index()
-            if not df.empty
-            else df
-        )
+        return pd.DataFrame(self.query_api.query_data_frame(query, org=self.org))

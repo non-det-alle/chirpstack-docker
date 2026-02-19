@@ -11,8 +11,6 @@ records = get_traffic_records(EPOCH)
 print("len after get_traffic_records", len(records))
 records = clean_traffic_records(records)
 print("len after clean_traffic_records", len(records))
-records = drop_devices_with_non_unique_sf(records)
-print("len after drop_devices_with_non_unique_sf", len(records))
 # compute phy payload length
 phy_payload_len = get_phy_payload_len(records)
 records = records.assign(phy_payload_len=phy_payload_len)
@@ -27,27 +25,30 @@ devices = get_devices()
 # join SF data to devices
 spreading_factors = get_device_sf(records)
 devices = devices.join(spreading_factors)
-# get best gateway
-best_gateway = get_device_best_gateway(records)
-devices = devices.join(best_gateway)
+# get best gateway snr
+best_gateway_snr = get_device_best_gateway_snr(records)
+devices = devices.join(best_gateway_snr)
 # get device traffic metrics
 device_metrics = get_device_metrics(records)
 devices = devices.join(device_metrics)
-# compute measured throughput and scale estimate via pdr
-throughput = devices["uplink_bits"] / EPOCH  # bit/s
-throughput = throughput / devices["pdr"]
-devices = devices.assign(throughput=throughput)
+# compute measured bitrate and scale estimate via pdr
+bitrate = devices["phy_bytes"] * 8 / EPOCH  # bit/s
+bitrate = bitrate / devices["pdr"]
+devices = devices.assign(bitrate=bitrate)
 # compute measured offered traffic and scale estimate via pdr
 offered_traffic = devices["time_on_air"] / EPOCH  # Erlang
 offered_traffic = offered_traffic / devices["pdr"]
 devices = devices.assign(offered_traffic=offered_traffic)
 
 
+# in theory only the snr is needed for channel allocation
+# bitrate may be substituted by declared throughput as a tag 
+
 ### GLOBECOM CHMASK ASSIGN
 devices = globecom22(devices)
 print(devices)
 
-set_channel_mask_configs(devices["chmask"])
+# set_channel_mask_configs(devices["chmask"])
 
-input("\nPress enter to clean-up configs and terminate program...")
-delete_channel_mask_configs(list(devices.index))
+# input("\nPress enter to clean-up configs and terminate program...")
+# delete_channel_mask_configs(list(devices.index))

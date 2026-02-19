@@ -126,7 +126,7 @@ def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
 
 
 def drop_devices_with_non_unique_sf(records: pd.DataFrame) -> pd.DataFrame:
-    # remove devices who changed SF
+    # remove records of devices who changed SF
     return records.groupby(["dev_eui"]).filter(lambda x: len(x["sf"].unique()) == 1)
 
 
@@ -152,22 +152,26 @@ def get_time_on_air(records: pd.DataFrame) -> pd.Series:
         return t_premble + t_payload
 
     args = ("phy_payload_len", "sf", "bw", "cr", "crc")
-    args = (records[a] for a in args)
-    return toa(*args)
+    return toa(*(records[a] for a in args))
 
 
-def get_device_sf(records: pd.DataFrame) -> pd.DataFrame:
-    return records[["dev_eui", "sf"]].drop_duplicates().set_index("dev_eui")
+def get_device_sf(records: pd.DataFrame) -> pd.Series:
+    df = records  # shallow copy
+    # deduplicate sf usage records
+    df = df.drop_duplicates(["dev_eui", "sf"])
+    # tranform to a per device list
+    df = df.groupby("dev_eui")["sf"].apply(list)
+    return df
 
 
-def get_device_best_gateway(records: pd.DataFrame) -> pd.DataFrame:
+def get_device_best_gateway_snr(records: pd.DataFrame) -> pd.DataFrame:
     df = records  # shallow copy
     # max historical snr for each dev & gw pairing
-    df = df.groupby(["dev_eui", "gateway_id"])["snr"].max().reset_index()
+    df = df.groupby(["dev_eui", "gateway_id"])["snr"].max()
     # max resulting snr among gateways for each dev
-    df = df.iloc[df.groupby("dev_eui")["snr"].idxmax()]
-    # extract snr and best gateway
-    df = df.set_index("dev_eui")[["snr", "gateway_id"]]
+    df = df[df.groupby("dev_eui").idxmax()]
+    # return snr and best gateway
+    df = df.reset_index("gateway_id")
     return df
 
 
@@ -176,18 +180,18 @@ def get_device_metrics(records: pd.DataFrame) -> pd.DataFrame:
 
     def deduplicate_records(records: pd.DataFrame) -> pd.DataFrame:
         tx_id = ["_time", "log_id"]  # unique uplink transmission
-        return records.reset_index().drop_duplicates(tx_id)
+        return records.drop_duplicates(tx_id)
 
     # deduplicate packets, sort by timestamp
     df = deduplicate_records(df).sort_values("_time")
     # index and group by device
     df = df.set_index("dev_eui").groupby("dev_eui")
 
-    def get_device_uplink_bits(records) -> pd.Series:
-        # total phy payload bits
-        return (records["phy_payload_len"].sum() * 8).rename("uplink_bits")
+    def get_device_phy_bytes(records) -> pd.Series:
+        # total phy payload bytes
+        return records["phy_payload_len"].sum().rename("phy_bytes")
 
-    uplink_bits = get_device_uplink_bits(df)
+    phy_bytes = get_device_phy_bytes(df)
 
     def get_device_time_on_air(records) -> pd.Series:
         # total time on air (s)
@@ -196,14 +200,12 @@ def get_device_metrics(records: pd.DataFrame) -> pd.DataFrame:
     time_on_air = get_device_time_on_air(df)
 
     def get_device_pdr_metrics(records) -> pd.DataFrame:
-        # extract device frame counters
-        f_cnt = records["f_cnt"]
         # count received packets
-        recv = f_cnt.count().astype(float).rename("recv")
-        # count frame counter diff, manage disconnections and starting values
-        diff = f_cnt.diff().mask(lambda x: x < 0, None).fillna(1)
+        recv = records["f_cnt"].count().astype(float).rename("nrecv")
+        # get frame counter diff, manage disconnections and starting values
+        diff = records["f_cnt"].diff().mask(lambda x: x < 0, None).fillna(1)
         # sum-up sent packets
-        sent = diff.groupby("dev_eui").sum().rename("sent")
+        sent = diff.groupby("dev_eui").sum().rename("nsent")
         # compute the packet delivery ratio
         pdr = (recv / sent).rename("pdr")
         # join the three dev_eui-indexed series
@@ -211,4 +213,4 @@ def get_device_metrics(records: pd.DataFrame) -> pd.DataFrame:
 
     pdr_metrics = get_device_pdr_metrics(df)
 
-    return pd.concat([uplink_bits, time_on_air, pdr_metrics], axis=1)
+    return pd.concat([phy_bytes, time_on_air, pdr_metrics], axis=1)

@@ -4,70 +4,54 @@ import numpy as np
 from utilities import CLUSTERS, FREQUENCIES
 
 
-def compute_cluster_shares(devices: pd.DataFrame):
-    # w_g,c: local traffic demand of a cluster
-    clusters = devices.groupby(["gateway_id", "cluster_id"])[["demand"]].sum()
-    # sum_c(w_g,c): total local traffic demand
-    gateway_demand = clusters.groupby("gateway_id")["demand"].sum()
-    clusters = clusters.join(gateway_demand.rename("gateway_demand"))
-    # w'_g,c: share of radio frequencies
-    freq_share = len(FREQUENCIES) * clusters["demand"] / clusters["gateway_demand"]
-    clusters = clusters.assign(freq_share=freq_share)
-    return clusters
-
-
-def hard_isolation(cluster_freq_share: pd.Series) -> pd.Series:
-    # grant 1 to each cluster with low share
-    cluster_freq_num = (cluster_freq_share <= 1).astype(int)
-    available_freqs = len(FREQUENCIES) - cluster_freq_num.sum()
-    # rescale shares on remaining frequencies
-    updated_freq_share = cluster_freq_share.mask(cluster_freq_share <= 1, 0)
-    updated_freq_share = updated_freq_share / len(FREQUENCIES) * available_freqs
-    # allocate interger part of shares
-    unserved_freq_share, int_part = np.modf(updated_freq_share)
-    cluster_freq_num += int_part
-    available_freqs -= int(int_part.sum())
-    # allocate fractional parts by magnitude
-    for _ in range(available_freqs):
-        cluster_id = unserved_freq_share.idxmax()
-        cluster_freq_num[cluster_id] += 1
-        unserved_freq_share[cluster_id] = 0
-    return cluster_freq_num.astype(int)
-
-
-def globecom22(devices: pd.DataFrame, debug=False) -> pd.DataFrame:
+def globecom22(devices: pd.DataFrame) -> pd.DataFrame:
     df = devices  # shallow copy
 
-    # append cluster id and max offered traffic
-    df = df.reset_index().set_index("cluster")
-    df = df.assign(cluster_id=CLUSTERS["id"], max_ot=CLUSTERS["max_ot"])
     # compute device demands for radio resources
-    df = df.assign(demand=(df["throughput"] / df["max_ot"]))
+    demand = df["bitrate"] / df["cluster"].map(CLUSTERS["max_ot"])
+    df = df.assign(demand=demand)
+
+    def compute_cluster_shares(devices: pd.DataFrame) -> pd.Series:
+        # w_g,c: local traffic demand of a cluster
+        cluster_demands = devices.groupby(["gateway_id", "cluster"])["demand"].sum()
+        # w'_g,c: normalized share of radio frequencies for gateway cluster
+        into_shares = lambda d: d / d.sum() * len(FREQUENCIES)
+        return cluster_demands.groupby("gateway_id").transform(into_shares)
 
     # compute clusters' frequency shares from device demands
-    clusters = compute_cluster_shares(df)
+    freq_share = compute_cluster_shares(df)
+
+    def hard_isolation(freq_share: pd.Series) -> pd.Series:
+        # grant 1 to each cluster with low share
+        num_freq = (freq_share <= 1).astype(int)
+        available_freqs = len(FREQUENCIES) - num_freq.sum()
+        # rescale shares on remaining frequencies
+        updated_freq_share = freq_share.mask(freq_share <= 1, 0)
+        updated_freq_share = updated_freq_share / len(FREQUENCIES) * available_freqs
+        # allocate interger part of shares
+        unserved_freq_share, int_part = np.modf(updated_freq_share)
+        num_freq += int_part
+        available_freqs -= int(int_part.sum())
+        # allocate fractional parts by magnitude
+        for _ in range(available_freqs):
+            cluster_id = unserved_freq_share.idxmax()
+            num_freq[cluster_id] += 1
+            unserved_freq_share[cluster_id] = 0
+        return num_freq.astype(int)
 
     # apply frequency share discretization algorithm
-    freq_num = clusters["freq_share"].groupby("gateway_id").transform(hard_isolation)
-    clusters = clusters.assign(freq_num=freq_num)
+    num_freq = freq_share.groupby("gateway_id").transform(hard_isolation)
+    df = df.join(num_freq.rename("num_freq"), on=["gateway_id", "cluster"])
 
-    def to_indices(cluster_freq_num: pd.Series):
-        cluster_freq_indices, assigned_freqs = [], 0
-        for freq_num in cluster_freq_num:
-            first, last = assigned_freqs, assigned_freqs + int(freq_num)
-            cluster_freq_indices.append(list(range(first, last)))
-            assigned_freqs = last
-        return pd.Series(cluster_freq_indices, index=cluster_freq_num.index)
+    def into_indices(num_freq: pd.Series):
+        freq_indices, assigned = [], 0
+        for n in num_freq:
+            freq_indices.append(list(range(assigned, assigned + n)))
+            assigned += n
+        return pd.Series(freq_indices, index=num_freq.index)
 
     # produce chmask for clusters
-    chmask = clusters["freq_num"].groupby("gateway_id").transform(to_indices)
-    clusters = clusters.assign(chmask=chmask)
-    if debug:
-        print(clusters)
-
-    # append configs to devices
-    df = df.set_index(["gateway_id", "cluster_id"])
-    df = df.join(clusters[["freq_num", "chmask"]])
-    df = df.reset_index().set_index("dev_eui")
+    chmask = num_freq.groupby("gateway_id").transform(into_indices)
+    df = df.join(chmask.rename("chmask"), on=["gateway_id", "cluster"])
 
     return df
