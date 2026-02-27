@@ -65,7 +65,7 @@ Make sure you have docker and docker-compose installed. This implementation can 
 Clone the repo:
 
 ```sh
-git clone https://github.com/non-det-alle/chirpstack-docker.git
+git clone https://github.com/nondetalle/chirpstack-docker.git
 ```
 
 Generate ChirpStack API token by running in the repo's root:
@@ -119,7 +119,7 @@ Implement your algorithm and other changes in [`config-server/src`](config-serve
 ## More documentation
 
 * this config-server API example: [docs/API.md](docs/API.md)
-* chirpstack gRPC API: <https://github.com/non-det-alle/chirpstack/tree/config-store/api/proto>
+* chirpstack gRPC API: <https://github.com/nondetalle/chirpstack/tree/config-store/api/proto>
 * chirpstack-docker: <https://github.com/chirpstack/chirpstack-docker>
 * elora: <https://github.com/Orange-OpenSource/elora>
 * ns-3: <https://www.nsnam.org/docs/release/3.43/tutorial/html/index.html>

@@ -2,7 +2,7 @@ FROM python:3.11.0 AS builder
 
 ARG API_VERSION
 
-RUN git clone --depth=1 -b $API_VERSION https://github.com/non-det-alle/chirpstack.git /chirpstack
+RUN git clone --depth=1 -b $API_VERSION https://github.com/nondetalle/chirpstack.git /chirpstack
 RUN cd /chirpstack/api/python && make all
 
 RUN python3 -c "import google.protobuf as pb; print(f'protobuf=={pb.__version__}')" > /protobuf.txt

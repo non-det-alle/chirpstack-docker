@@ -50,7 +50,7 @@ For the time being, the set of configurations that can be applied to devices is 
 
 ### Device configuration storage LNS API primitives
 
-In the following we detail the API signatures to interact with the devices' configuration in the LNS. The underlying gRPC API uses lower level functions and structures (e.g. `api.DeviceConfigStore`) that are described in the API's [proto schema](https://github.com/non-det-alle/chirpstack/blob/config-store/api/proto/api/device_config_store.proto). We provide the following wrapper functions aligned to the underling LNS gRPC API used to manage the whole set of device configurations you can store in the LNS:
+In the following we detail the API signatures to interact with the devices' configuration in the LNS. The underlying gRPC API uses lower level functions and structures (e.g. `api.DeviceConfigStore`) that are described in the API's [proto schema](https://github.com/nondetalle/chirpstack/blob/config-store/api/proto/api/device_config_store.proto). We provide the following wrapper functions aligned to the underling LNS gRPC API used to manage the whole set of device configurations you can store in the LNS:
 
 - `set_device_config(self, dev_eui: str, config_store: api.DeviceConfigStore) -> None`:
 
