@@ -8,7 +8,7 @@ def globecom22(devices: pd.DataFrame) -> pd.DataFrame:
     df = devices  # shallow copy
 
     # compute device demands for radio resources
-    demand = df["bitrate"] / df["cluster"].map(CLUSTERS["max_ot"])
+    demand = df["throughput"] / df["cluster"].map(CLUSTERS["max_ot"])
     df = df.assign(demand=demand)
 
     def compute_cluster_shares(devices: pd.DataFrame) -> pd.Series:
