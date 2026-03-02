@@ -43,15 +43,17 @@ def get_devices() -> pd.DataFrame:
         # ensure tags are set
         if device_list and "cluster" not in device_list[0]["tags"]:
             tags = {"cluster": "high_reliability"}
-            ns.set_device_tags(device_list[0]["dev_eui"], tags)
-            device_list[0].update({"tags": tags})
+            ns.set_device_tags(device_list[0]["dev_eui"], device_list[0]["tags"] | tags)
+            device_list[0]["tags"].update(tags)
             tags = {"cluster": "best_effort"}
-            [ns.set_device_tags(d["dev_eui"], tags) for d in device_list[1:]]
+            [ns.set_device_tags(d["dev_eui"], d["tags"] | tags) for d in device_list[1:]]
             # for now, more efficient that calling ns.list_devices again
-            [d.update({"tags": tags}) for d in device_list[1:]]
+            [d["tags"].update(tags) for d in device_list[1:]]
     columns = ["dev_eui", "tags"]
     devices = pd.DataFrame(device_list)[columns].set_index("dev_eui").sort_index()
-    devices = devices.assign(cluster=[t["cluster"] for t in devices.pop("tags")])
+    tags = devices.pop("tags")
+    devices = devices.assign(cluster=[t["cluster"] for t in tags])
+    devices = devices.assign(throughput=[float(t["bps"]) for t in tags])
     return devices
 
 
@@ -203,7 +205,7 @@ def get_device_metrics(records: pd.DataFrame) -> pd.DataFrame:
         # count received packets
         recv = records["f_cnt"].count().astype(float).rename("nrecv")
         # get frame counter diff, manage disconnections and starting values
-        diff = records["f_cnt"].diff().mask(lambda x: x < 0, None).fillna(1)
+        diff = records["f_cnt"].diff().mask(lambda x: x <= 0, None).fillna(1)
         # sum-up sent packets
         sent = diff.groupby("dev_eui").sum().rename("nsent")
         # compute the packet delivery ratio
