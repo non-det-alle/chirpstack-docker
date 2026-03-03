@@ -1,21 +1,19 @@
 import pandas as pd
 import numpy as np
 
-from utilities import CLUSTERS, FREQUENCIES
 
-
-def globecom22(devices: pd.DataFrame) -> pd.DataFrame:
+def globecom22(devices: pd.DataFrame, max_ot: pd.Series, nfreq: int) -> pd.DataFrame:
     df = devices  # shallow copy
 
     # compute device demands for radio resources
-    demand = df["throughput"] / df["cluster"].map(CLUSTERS["max_ot"])
+    demand = df["bps"] / df["cluster"].map(max_ot)
     df = df.assign(demand=demand)
 
     def compute_cluster_shares(devices: pd.DataFrame) -> pd.Series:
         # w_g,c: local traffic demand of a cluster
         cluster_demands = devices.groupby(["gateway_id", "cluster"])["demand"].sum()
         # w'_g,c: normalized share of radio frequencies for gateway cluster
-        into_shares = lambda d: d / d.sum() * len(FREQUENCIES)
+        into_shares = lambda d: d / d.sum() * nfreq
         return cluster_demands.groupby("gateway_id").transform(into_shares)
 
     # compute clusters' frequency shares from device demands
@@ -23,21 +21,21 @@ def globecom22(devices: pd.DataFrame) -> pd.DataFrame:
 
     def hard_isolation(freq_share: pd.Series) -> pd.Series:
         # grant 1 to each cluster with low share
-        num_freq = (freq_share <= 1).astype(int)
-        available_freqs = len(FREQUENCIES) - num_freq.sum()
+        assigned_freq = (freq_share <= 1).astype(int)
+        available_freqs = nfreq - assigned_freq.sum()
         # rescale shares on remaining frequencies
         updated_freq_share = freq_share.mask(freq_share <= 1, 0)
-        updated_freq_share = updated_freq_share / len(FREQUENCIES) * available_freqs
+        updated_freq_share = updated_freq_share / nfreq * available_freqs
         # allocate interger part of shares
         unserved_freq_share, int_part = np.modf(updated_freq_share)
-        num_freq += int_part
+        assigned_freq += int_part
         available_freqs -= int(int_part.sum())
         # allocate fractional parts by magnitude
         for _ in range(available_freqs):
             cluster_id = unserved_freq_share.idxmax()
-            num_freq[cluster_id] += 1
+            assigned_freq[cluster_id] += 1
             unserved_freq_share[cluster_id] = 0
-        return num_freq.astype(int)
+        return assigned_freq.astype(int)
 
     # apply frequency share discretization algorithm
     num_freq = freq_share.groupby("gateway_id").transform(hard_isolation)

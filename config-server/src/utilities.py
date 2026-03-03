@@ -29,12 +29,6 @@ def on_sigterm(f):
     return f
 
 
-# Constants?
-FREQUENCIES = (868100000, 868300000, 868500000)
-# , 867100000, 867300000, 867500000, 867700000, 867900000)
-DATARATES = (0, 1, 2, 3, 4, 5)
-
-
 def capacity_from_pdr(pdr):
     gt = -np.log(0.98)
     gamma = np.pow(10.0, 1.0 / 10.0)
@@ -42,34 +36,13 @@ def capacity_from_pdr(pdr):
     return -0.5 * (a + sp.lambertw(-(a / np.exp(a))).real * np.exp(gt) * np.array(pdr))
 
 
-CLUSTERS = pd.DataFrame({
-    "name"       : ("ultra_high_reliability", "high_reliability", "best_effort"),
-    "pdr"        : (0.97                    , 0.90              , 0.70         ),
-    "dev_percent": (0.1                     , 0.3               , 0.6          ),
-    "id"         : (0                       , 1                 , 2            ),
-}).set_index("name", verify_integrity=True)
-CLUSTERS = CLUSTERS.assign(max_ot=capacity_from_pdr(CLUSTERS["pdr"])) # on a SF on a freq.
-
-
 def get_devices(ns: ChirpStackClient) -> pd.DataFrame:
     tenant_id = ns.get_tenant_id(CHIRPSTACK_TENANT)
     application_id = ns.get_application_ids(tenant_id)[0]
     device_list = ns.list_devices(application_id)
-    # ensure tags are set
-    if device_list and "cluster" not in device_list[0]["tags"]:
-        tags = {"cluster": "high_reliability"}
-        ns.set_device_tags(device_list[0]["dev_eui"], device_list[0]["tags"] | tags)
-        device_list[0]["tags"].update(tags)
-        tags = {"cluster": "best_effort"}
-        [ns.set_device_tags(d["dev_eui"], d["tags"] | tags) for d in device_list[1:]]
-        # for now, more efficient that calling ns.list_devices again
-        [d["tags"].update(tags) for d in device_list[1:]]
-    columns = ["dev_eui", "tags"]
-    devices = pd.DataFrame(device_list)[columns].set_index("dev_eui").sort_index()
-    tags = devices.pop("tags")
-    devices = devices.assign(cluster=[t["cluster"] for t in tags])
-    devices = devices.assign(throughput=[float(t["bps"]) for t in tags])
-    return devices
+    device_list = pd.DataFrame(device_list)
+    device_list = device_list.set_index("dev_eui").sort_index()
+    return device_list
 
 
 def set_channel_mask_configs(ns: ChirpStackClient, configs: pd.Series):
