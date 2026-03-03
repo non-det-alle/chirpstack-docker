@@ -1,16 +1,32 @@
+import signal
+
 import numpy as np
 import scipy.special as sp
 import pandas as pd
 
-from config import *
-from chirpstack_client import ChirpStackClient, DeviceConfigStore
-from influxdb_client_wrapper import InfluxDBClientWrapper
+from .config import *
+from .chirpstack_client import ChirpStackClient, DeviceConfigStore
+from .influxdb_client_wrapper import InfluxDBClientWrapper
 
 
-# Support data structures
-# cluster, DR, dev_eui
-type RangeData = tuple[tuple[list]]
-type Order = dict[str, float]
+def NetworkServer():
+    return ChirpStackClient(CHIRPSTACK_ENDPOINT, CHIRPSTACK_TOKEN)
+
+
+def DataBase():
+    args = (INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET)
+    return InfluxDBClientWrapper(*args)
+
+def on_sigterm(f):
+    def handler(*_):
+        f()
+        # restore and propagate
+        signal.signal(signal.SIGTERM, default)
+        signal.raise_signal(signal.SIGTERM)
+
+    default = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGTERM, handler)
+    return f
 
 
 # Constants?
@@ -35,20 +51,19 @@ CLUSTERS = pd.DataFrame({
 CLUSTERS = CLUSTERS.assign(max_ot=capacity_from_pdr(CLUSTERS["pdr"])) # on a SF on a freq.
 
 
-def get_devices() -> pd.DataFrame:
-    with ChirpStackClient(CHIRPSTACK_ENDPOINT, CHIRPSTACK_TOKEN) as ns:
-        tenant_id = ns.get_tenant_id(CHIRPSTACK_TENANT)
-        application_id = ns.get_application_ids(tenant_id)[0]
-        device_list = ns.list_devices(application_id)
-        # ensure tags are set
-        if device_list and "cluster" not in device_list[0]["tags"]:
-            tags = {"cluster": "high_reliability"}
-            ns.set_device_tags(device_list[0]["dev_eui"], device_list[0]["tags"] | tags)
-            device_list[0]["tags"].update(tags)
-            tags = {"cluster": "best_effort"}
-            [ns.set_device_tags(d["dev_eui"], d["tags"] | tags) for d in device_list[1:]]
-            # for now, more efficient that calling ns.list_devices again
-            [d["tags"].update(tags) for d in device_list[1:]]
+def get_devices(ns: ChirpStackClient) -> pd.DataFrame:
+    tenant_id = ns.get_tenant_id(CHIRPSTACK_TENANT)
+    application_id = ns.get_application_ids(tenant_id)[0]
+    device_list = ns.list_devices(application_id)
+    # ensure tags are set
+    if device_list and "cluster" not in device_list[0]["tags"]:
+        tags = {"cluster": "high_reliability"}
+        ns.set_device_tags(device_list[0]["dev_eui"], device_list[0]["tags"] | tags)
+        device_list[0]["tags"].update(tags)
+        tags = {"cluster": "best_effort"}
+        [ns.set_device_tags(d["dev_eui"], d["tags"] | tags) for d in device_list[1:]]
+        # for now, more efficient that calling ns.list_devices again
+        [d["tags"].update(tags) for d in device_list[1:]]
     columns = ["dev_eui", "tags"]
     devices = pd.DataFrame(device_list)[columns].set_index("dev_eui").sort_index()
     tags = devices.pop("tags")
@@ -57,23 +72,18 @@ def get_devices() -> pd.DataFrame:
     return devices
 
 
-def set_channel_mask_configs(configs: pd.Series):
-    with ChirpStackClient(CHIRPSTACK_ENDPOINT, CHIRPSTACK_TOKEN) as ns:
-        for dev_eui, chmask in configs.items():
-            config_store = DeviceConfigStore(enabled_uplink_channel_indices=chmask)
-            ns.set_device_config(str(dev_eui), config_store)
+def set_channel_mask_configs(ns: ChirpStackClient, configs: pd.Series):
+    for dev_eui, chmask in configs.items():
+        config_store = DeviceConfigStore(enabled_uplink_channel_indices=chmask)
+        ns.set_device_config(str(dev_eui), config_store)
 
 
-def delete_channel_mask_configs(dev_euis: list[str]):
-    with ChirpStackClient(CHIRPSTACK_ENDPOINT, CHIRPSTACK_TOKEN) as ns:
-        _ = [ns.delete_device_config(d) for d in dev_euis]
+def delete_channel_mask_configs(ns: ChirpStackClient, dev_euis: list[str]):
+    _ = [ns.delete_device_config(d) for d in dev_euis]
 
 
-def get_traffic_records(since_seconds) -> pd.DataFrame:
-    args = (INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET)
-    with InfluxDBClientWrapper(*args) as db:
-        records = db.get_traffic_records(f"-{since_seconds}s")
-    return records
+def get_traffic_records(db: InfluxDBClientWrapper, since_seconds) -> pd.DataFrame:
+    return db.get_traffic_records(f"-{since_seconds}s")
 
 
 def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
@@ -127,6 +137,14 @@ def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def get_packet_metrics(records: pd.DataFrame) -> pd.DataFrame:
+    # compute phy payload length
+    phy_payload_len = get_phy_payload_len(records)
+    # compute record time on ai
+    time_on_air = get_time_on_air(records.join(phy_payload_len))
+    return pd.concat([phy_payload_len, time_on_air], axis=1)
+
+
 def drop_devices_with_non_unique_sf(records: pd.DataFrame) -> pd.DataFrame:
     # remove records of devices who changed SF
     return records.groupby(["dev_eui"]).filter(lambda x: len(x["sf"].unique()) == 1)
@@ -139,7 +157,7 @@ def get_phy_payload_len(records: pd.DataFrame) -> pd.Series:
         return 12 + f_port_present + f_opts_len + frm_payload_len
 
     args = ("f_port", "f_opts_len", "frm_payload_len")
-    return phy_payload_len(*(records[a] for a in args))
+    return phy_payload_len(*(records[a] for a in args)).rename("phy_payload_len")
 
 
 def get_time_on_air(records: pd.DataFrame) -> pd.Series:
@@ -154,7 +172,7 @@ def get_time_on_air(records: pd.DataFrame) -> pd.Series:
         return t_premble + t_payload
 
     args = ("phy_payload_len", "sf", "bw", "cr", "crc")
-    return toa(*(records[a] for a in args))
+    return toa(*(records[a] for a in args)).rename("time_on_air")
 
 
 def get_device_sf(records: pd.DataFrame) -> pd.Series:
