@@ -56,7 +56,7 @@ def get_freq_indices(ns: ChirpStackClient, dev_euis: list[str]) -> pd.DataFrame:
             params = ns.get_device_current_params(dev_eui)
             channels = pd.DataFrame(to_dict(params)["channels"]).T["frequency"].reset_index()
             channels = channels.assign(dev_eui=dev_eui, index=channels["index"].astype(int))
-            channels = channels.set_index(["dev_eui", "frequency"])
+            channels = channels.set_index(["dev_eui", "frequency"]).sort_values("index")
         except ValueError:
             return pd.DataFrame()
         return channels
