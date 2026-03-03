@@ -79,7 +79,7 @@ class ChirpStackClient:
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 # Trying to get non-existent device
-                print(f"ERROR: device not found (id: {dev_eui})")
+                print(f"Device not found (id: {dev_eui})")
             raise e
 
     def set_device_tags(self, dev_eui: str, tags: dict[str, str]) -> None:
@@ -92,7 +92,7 @@ class ChirpStackClient:
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 # Trying to update non-existent device
-                print(f"ERROR: device not found (id: {dev_eui})")
+                print(f"Device not found (id: {dev_eui})")
             raise e
 
     #####################################################################################
@@ -112,7 +112,7 @@ class ChirpStackClient:
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 # Trying to set config for non-existent device
-                raise ValueError(f"ERROR: device not found (id: {dev_eui})")
+                raise ValueError(f"Device not found (id: {dev_eui})")
             raise e
 
     def get_device_config(self, dev_eui: str) -> api.DeviceConfigStore:
@@ -123,7 +123,7 @@ class ChirpStackClient:
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
-                raise ValueError(f"ERROR: config store not found (id: {dev_eui})")
+                raise ValueError(f"Config store not found (id: {dev_eui})")
             raise e
         return resp.device_config_store
 
@@ -172,11 +172,11 @@ class ChirpStackClient:
             match e.code():
                 case grpc.StatusCode.NOT_FOUND:
                     # Trying to get config alignment for non existent device or config store
-                    raise ValueError(f"ERROR: {e.details()}")
+                    raise ValueError(e.details())
                 case grpc.StatusCode.FAILED_PRECONDITION | grpc.StatusCode.UNAVAILABLE:
                     # Trying to get alignment for unactivated device (either join or manual)
                     # or for unseen activated device after manual activation
-                    raise ValueError(f"ERROR: {e.details()}")
+                    raise ValueError(e.details())
             raise e
         return resp
 
@@ -194,10 +194,10 @@ class ChirpStackClient:
             match e.code():
                 case grpc.StatusCode.NOT_FOUND:
                     # Trying to get params for not existent device
-                    raise ValueError(f"ERROR: device not found (id: {dev_eui})")
+                    raise ValueError(f"Device not found (id: {dev_eui})")
                 case grpc.StatusCode.FAILED_PRECONDITION | grpc.StatusCode.UNAVAILABLE:
                     # Trying to get params for unactivated device (either join or manual)
                     # or for unseen activated device after manual activation
-                    raise ValueError(f"ERROR: {e.details()}")
+                    raise ValueError(e.details())
             raise e
         return resp
