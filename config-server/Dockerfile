@@ -21,7 +21,7 @@ RUN apk add --no-cache tini && \
     pip install --no-cache-dir -r /requirements.txt && \
     pip install --no-cache-dir /chirpstack_api
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
 # start.py loaded as volume to facilitate development 
 ENTRYPOINT ["/sbin/tini", "-g", "--", "python", "-u", "start.py"]

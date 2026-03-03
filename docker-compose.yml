@@ -107,7 +107,7 @@ services:
       CHIRPSTACK_API_TOKEN_FILE: /run/secrets/chirpstack-api-token
     volumes:
       - ./configuration/config-server:/etc/config-server
-      - ./config-server/src:/usr/src/app
+      - ./config-server:/app
     depends_on:
       - chirpstack
       - influxdb

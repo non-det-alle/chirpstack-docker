@@ -2,4 +2,5 @@
 
 influxdb-client
 pandas
+scipy
 toml
