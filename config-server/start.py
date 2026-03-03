@@ -1,6 +1,7 @@
 import sys
 import time
 
+import src.config as config
 from src.utilities import NetworkServer, DataBase
 
 #            CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM
@@ -64,17 +65,28 @@ import src.freq_streering as algorithm
 # import global algorithm configs to edit them
 from src.freq_streering import LOOKBACK_ORIZON
 
-CONTROL_LOOP_PERIODICITY = 60 # seconds
+CONTROL_LOOP_PERIODICITY = 60  # seconds
+
 
 def main():
+    if len(sys.argv) > 1:
+        if sys.argv[1] != "-c":
+            print("Usage: python start.py [-c <path/to/config/file/dir>]")
+            return 1
+        try:
+            config.load(sys.argv[2])
+        except:
+            print("Ill-formed config-server.toml file, check provided example")
+            return 1
+
     with NetworkServer() as ns, DataBase() as db:
         try:
             while True:
                 algorithm.run(ns, db)
                 time.sleep(CONTROL_LOOP_PERIODICITY)
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             algorithm.cleanup(ns)
-            print("Cleared configs")
+            print("\nConfigs cleared")
 
 
 if __name__ == "__main__":
