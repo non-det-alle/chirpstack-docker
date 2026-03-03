@@ -106,6 +106,8 @@ def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
             "rx_info.rssi": "rssi",
             # get_device_pdr
             "phy_payload.payload.fhdr.f_cnt": "f_cnt",
+            # other
+            "tx_info.frequency": "frequency",
         }
         return records.rename(columns=columns)
 
@@ -130,6 +132,8 @@ def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
         df["crc"] = df["crc_status"].ne("NO_CRC")
         # get_device_pdr
         df["f_cnt"] = df["f_cnt"].astype(int)
+        # other
+        df["frequency"] = df["frequency"].astype(int)
         return df
 
     df = format_fields(df)
