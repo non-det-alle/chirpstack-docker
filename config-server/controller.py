@@ -1,5 +1,5 @@
-from .utilities import *
-from .globecom22 import globecom22
+from src.utilities import *
+from src.globecom22 import globecom22
 
 
 FREQUENCIES = (868100000, 868300000, 868500000)
