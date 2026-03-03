@@ -4,18 +4,22 @@ import numpy as np
 import scipy.special as sp
 import pandas as pd
 
-from .config import *
+from .config import config
 from .chirpstack_client import ChirpStackClient, DeviceConfigStore
 from .influxdb_client_wrapper import InfluxDBClientWrapper
 
 
 def NetworkServer():
-    return ChirpStackClient(CHIRPSTACK_ENDPOINT, CHIRPSTACK_TOKEN)
+    return ChirpStackClient(config.CHIRPSTACK_ENDPOINT, config.CHIRPSTACK_TOKEN)
 
 
 def DataBase():
-    args = (INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET)
-    return InfluxDBClientWrapper(*args)
+    return InfluxDBClientWrapper(
+        config.INFLUXDB_URL,
+        config.INFLUXDB_TOKEN,
+        config.INFLUXDB_ORG,
+        config.INFLUXDB_BUCKET,
+    )
 
 
 def on_sigterm(f):
@@ -38,7 +42,7 @@ def capacity_from_pdr(pdr):
 
 
 def get_devices(ns: ChirpStackClient) -> pd.DataFrame:
-    tenant_id = ns.get_tenant_id(CHIRPSTACK_TENANT)
+    tenant_id = ns.get_tenant_id(config.CHIRPSTACK_TENANT)
     application_id = ns.get_application_ids(tenant_id)[0]
     device_list = ns.list_devices(application_id)
     device_list = pd.DataFrame(device_list)

@@ -1,7 +1,7 @@
 import sys
 import time
 
-import src.config as config
+from src.config import config
 from src.utilities import NetworkServer, DataBase
 
 #            CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM
