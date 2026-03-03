@@ -63,9 +63,12 @@ from src.utilities import NetworkServer, DataBase
 import src.freq_streering as algorithm
 
 # import global algorithm configs to edit them
-from src.freq_streering import LOOKBACK_ORIZON
+from src.freq_streering import LOOKBACK_ORIZON, CONFIG_DECAY_THRESHOLD
 
 CONTROL_LOOP_PERIODICITY = 60  # seconds
+
+LOOKBACK_ORIZON = 1 * 60 * 60  # seconds
+CONFIG_DECAY_THRESHOLD = 1 * 60 * 60  # seconds
 
 
 def main():

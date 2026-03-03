@@ -23,7 +23,7 @@ def get_updated_tags_with_cluster(ns: ChirpStackClient, devices: pd.DataFrame):
     tags = devices["tags"].apply(pd.Series)
     if not tags.empty and "cluster" not in tags:
         cluster = ["high_reliability"] + ["best_effort"] * (len(tags) - 1)
-        tags  = tags.assign(cluster=cluster)
+        tags = tags.assign(cluster=cluster)
         _ = [ns.set_device_tags(str(d), dict(t)) for d, t in tags.iterrows()]
     tags = tags.assign(bps=tags["bps"].astype(float))
     return tags
@@ -54,8 +54,10 @@ with DataBase() as db, NetworkServer() as ns:
     best_gateway_snr = get_device_best_gateway_snr(records)
     devices = devices.join(best_gateway_snr)
     # get device traffic metrics
-    device_metrics = get_device_metrics(records)
-    devices = devices.join(device_metrics)
+    device_toa_metrics = get_device_toa_metrics(records)
+    devices = devices.join(device_toa_metrics)
+    device_pdr_metrics = get_device_pdr_metrics(records)
+    devices = devices.join(device_pdr_metrics)
     # compute measured bitrate and scale estimate via pdr
     bitrate = devices["phy_bytes"] * 8 / EPOCH  # bit/s
     bitrate = bitrate / devices["pdr"]

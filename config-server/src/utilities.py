@@ -17,6 +17,7 @@ def DataBase():
     args = (INFLUXDB_URL, INFLUXDB_TOKEN, INFLUXDB_ORG, INFLUXDB_BUCKET)
     return InfluxDBClientWrapper(*args)
 
+
 def on_sigterm(f):
     def handler(*_):
         f()
@@ -114,7 +115,7 @@ def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def get_packet_metrics(records: pd.DataFrame) -> pd.DataFrame:
+def get_packet_toa_metrics(records: pd.DataFrame) -> pd.DataFrame:
     # compute phy payload length
     phy_payload_len = get_phy_payload_len(records)
     # compute record time on ai
@@ -172,12 +173,13 @@ def get_device_best_gateway_snr(records: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def get_device_metrics(records: pd.DataFrame) -> pd.DataFrame:
-    df = records  # shallow copy
+def deduplicate_records(records: pd.DataFrame) -> pd.DataFrame:
+    tx_id = ["_time", "log_id"]  # unique uplink transmission
+    return records.drop_duplicates(tx_id)
 
-    def deduplicate_records(records: pd.DataFrame) -> pd.DataFrame:
-        tx_id = ["_time", "log_id"]  # unique uplink transmission
-        return records.drop_duplicates(tx_id)
+
+def get_device_toa_metrics(records: pd.DataFrame) -> pd.DataFrame:
+    df = records  # shallow copy
 
     # deduplicate packets, sort by timestamp
     df = deduplicate_records(df).sort_values("_time")
@@ -196,7 +198,18 @@ def get_device_metrics(records: pd.DataFrame) -> pd.DataFrame:
 
     time_on_air = get_device_time_on_air(df)
 
-    def get_device_pdr_metrics(records) -> pd.DataFrame:
+    return pd.concat([phy_bytes, time_on_air], axis=1)
+
+
+def get_device_pdr_metrics(records: pd.DataFrame) -> pd.DataFrame:
+    df = records  # shallow copy
+
+    # deduplicate packets, sort by timestamp
+    df = deduplicate_records(df).sort_values("_time")
+    # index and group by device
+    df = df.set_index("dev_eui").groupby("dev_eui")
+
+    def get_device_pdr(records) -> pd.DataFrame:
         # count received packets
         recv = records["f_cnt"].count().astype(float).rename("nrecv")
         # get frame counter diff, manage disconnections and starting values
@@ -208,6 +221,4 @@ def get_device_metrics(records: pd.DataFrame) -> pd.DataFrame:
         # join the three dev_eui-indexed series
         return pd.concat([recv, sent, pdr], axis=1)
 
-    pdr_metrics = get_device_pdr_metrics(df)
-
-    return pd.concat([phy_bytes, time_on_air, pdr_metrics], axis=1)
+    return get_device_pdr(df)

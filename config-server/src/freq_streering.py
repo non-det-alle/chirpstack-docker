@@ -20,17 +20,16 @@ def run(ns: ChirpStackClient, db: InfluxDBClientWrapper):
     # load records
     records = get_traffic_records(db, LOOKBACK_ORIZON)
     records = clean_traffic_records(records)
-    packet_metrics = get_packet_metrics(records)
-    records = records.join(packet_metrics)
+    packet_toa_metrics = get_packet_toa_metrics(records)
+    records = records.join(packet_toa_metrics)
 
     # load devices
-    devices = get_devices(ns)
+    devices = get_devices(ns)[["name"]]
     # get device traffic metrics
-    device_metrics = get_device_metrics(records)
-    devices = devices.join(device_metrics)
-    # get device desired pdr
-    qos = devices["cluster"].map(CLUSTERS["pdr"])
-    devices = devices.assign(qos=qos)
+    device_toa_metrics = get_device_toa_metrics(records)
+    devices = devices.join(device_toa_metrics)
+    device_pdr_metrics = get_device_pdr_metrics(records)
+    devices = devices.join(device_pdr_metrics)
 
     # load frequencies from server configs
     frequencies = get_freq_indices(ns, list(devices.index))
