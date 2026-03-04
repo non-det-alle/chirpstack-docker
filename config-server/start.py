@@ -62,8 +62,8 @@ from src.utilities import NetworkServer, DataBase, on_sigterm, ConfigServerError
 
 import src.freq_streering as algorithm
 
+# Configurations
 CONTROL_LOOP_PERIODICITY = 5  # seconds
-
 algorithm.set_lookback_orizon(1 * 60 * 60)  # seconds
 algorithm.set_config_decay_threshold(1 * 60 * 60)  # seconds
 

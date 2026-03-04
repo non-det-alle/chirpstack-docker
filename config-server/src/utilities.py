@@ -12,6 +12,7 @@ from .chirpstack_client import DeviceConfigStore, to_dict, NotFoundError
 
 class ConfigServerError(Exception):
     name = "ConfigServerError"
+
     def __init__(self, cause):
         self.args = (f"{self.name}: {cause}",)
         super().__init__(*self.args)
@@ -107,6 +108,8 @@ def get_traffic_records(db: DB, dev_euis: list[str], since_s: int) -> pd.DataFra
         records = db.get_traffic_records(f"-{since_s}s", dev_eui=dev_euis)
     except Exception as e:
         raise DataBaseError(e) from e
+    if records.empty:
+        raise DataBaseError("No record found")
     return records
 
 

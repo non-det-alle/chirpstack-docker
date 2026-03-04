@@ -20,32 +20,35 @@ def run(ns: ut.NS, db: ut.DB):
     devices = ut.get_devices(ns)[["name"]]
     dev_euis = list(devices.index)
 
-    # load records and compute packet metrics
+    # load traffic records
     records = ut.get_traffic_records(db, dev_euis, LOOKBACK_ORIZON)
     records = ut.clean_traffic_records(records)
-    packet_toa_metrics = ut.get_packet_toa_metrics(records)
-    records = records.join(packet_toa_metrics)
 
-    # get device traffic metrics
-    device_toa_metrics = ut.get_device_toa_metrics(records)
-    devices = devices.join(device_toa_metrics)
-    device_pdr_metrics = ut.get_device_pdr_metrics(records)
-    devices = devices.join(device_pdr_metrics)
-
-    # load frequencies from server configs
+    # load frequencies from server device session
     frequencies = ut.get_freq_indices(ns, dev_euis)
-    if frequencies.empty:
-        print("No device seen (yet), postponing.")
-        return
     # compute and join freq stats from records
     freq_stats = get_device_freq_stats(records)
     frequencies = frequencies.join(freq_stats)
     print(frequencies)
 
+    # check that we have data for all frequencies
+    ready = get_ready_devices(devices, frequencies)
+    # no device seen or has data for all freqs yet
+    if frequencies.empty or all(~ready):
+        raise ut.ConfigServerError("Not enough data")
+
+    # (optional) aggregate device traffic metrics
+    packet_toa_metrics = ut.get_packet_toa_metrics(records)
+    records = records.join(packet_toa_metrics)
+    device_toa_metrics = ut.get_device_toa_metrics(records)
+    devices = devices.join(device_toa_metrics)
+    device_pdr_metrics = ut.get_device_pdr_metrics(records)
+    devices = devices.join(device_pdr_metrics)
+
     # generate chmask configs
     enabled = get_enabled_with_decay(frequencies)
     enabled = enabled.groupby("dev_eui").aggregate(list)
-    devices = devices.join(enabled.rename("chmask"))
+    devices = devices[ready].join(enabled.rename("chmask"))
     print(devices)
 
     ut.set_channel_mask_configs(ns, devices["chmask"])
@@ -85,14 +88,24 @@ def get_device_freq_stats(records: pd.DataFrame) -> pd.DataFrame:
     return pdr
 
 
+def get_ready_devices(devices: pd.DataFrame, frequencies: pd.DataFrame) -> pd.Series:
+    df = frequencies  # shallow copy
+    df = df["nrecv"].groupby("dev_eui").apply(lambda g: (g > 0).all()).astype(bool)
+    df = df.reindex(devices.index).rename("ready")
+    return df
+
+
 def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
     global DECAYING
 
     # store current timestamp
     now = time.time()
 
+    # manage unseen data: cast NaN to bool
+    outliers = frequencies["outlier"].astype(bool)
+
     # set non-outliers to enabled frequency indices
-    enabled = frequencies.loc[~frequencies["outlier"], "index"]
+    enabled = frequencies.loc[~outliers, "index"]
     # restore decayed configurations
     if not DECAYING.empty:
         # drop obsolete decaying configs (e.g., due to session reset)
@@ -107,7 +120,7 @@ def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
         DECAYING = DECAYING[~decayed]
 
     # set outliers to disabled frequency indices
-    disabled = frequencies.loc[frequencies["outlier"], ["index"]]
+    disabled = frequencies.loc[outliers, ["index"]]
     # filter out channels with an already running decay
     if not DECAYING.empty:
         disabled = disabled[~disabled.isin(DECAYING[["index"]])]
