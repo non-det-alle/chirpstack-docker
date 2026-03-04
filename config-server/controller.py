@@ -1,4 +1,6 @@
-from src.utilities import *
+import pandas as pd
+
+from src import utilities as ut
 from src.globecom22 import globecom22
 
 
@@ -12,14 +14,14 @@ CLUSTERS = pd.DataFrame({
     "dev_percent": (0.1                     , 0.3               , 0.6          ),
     "id"         : (0                       , 1                 , 2            ),
 }).set_index("name", verify_integrity=True)
-CLUSTERS = CLUSTERS.assign(max_ot=capacity_from_pdr(CLUSTERS["pdr"])) # on a SF on a freq.
+CLUSTERS = CLUSTERS.assign(max_ot=ut.capacity_from_pdr(CLUSTERS["pdr"])) # on a SF on a freq.
 
 print(CLUSTERS, "\n")
 
 EPOCH = 1 * 60 * 60  # seconds
 
 
-def get_updated_tags_with_cluster(ns: ChirpStackClient, devices: pd.DataFrame):
+def get_updated_tags_with_cluster(ns: ut.NS, devices: pd.DataFrame):
     tags = devices["tags"].apply(pd.Series)
     if not tags.empty and "cluster" not in tags:
         cluster = ["high_reliability"] + ["best_effort"] * (len(tags) - 1)
@@ -29,34 +31,37 @@ def get_updated_tags_with_cluster(ns: ChirpStackClient, devices: pd.DataFrame):
     return tags
 
 
-with DataBase() as db, NetworkServer() as ns:
+with ut.DataBase() as db, ut.NetworkServer() as ns:
+
+    # get devices from server
+    devices = ut.get_devices(ns)
+    dev_euis = list(devices.index)
 
     ### TRAFFIC RECORDS
-    records = get_traffic_records(db, EPOCH)
+    records = ut.get_traffic_records(db, dev_euis, EPOCH)
     print("len after get_traffic_records", len(records))
-    records = clean_traffic_records(records)
+    records = ut.clean_traffic_records(records)
     print("len after clean_traffic_records", len(records))
     # compute phy payload length
-    phy_payload_len = get_phy_payload_len(records)
+    phy_payload_len = ut.get_phy_payload_len(records)
     records = records.assign(phy_payload_len=phy_payload_len)
     # compute record time on air
-    time_on_air = get_time_on_air(records)
+    time_on_air = ut.get_time_on_air(records)
     records = records.assign(time_on_air=time_on_air)
     print(records)
 
     ### DEVICE METRICS
-    devices = get_devices(ns)
     devices = get_updated_tags_with_cluster(ns, devices)
     # join SF data to devices
-    spreading_factors = get_device_sf(records)
+    spreading_factors = ut.get_device_sf(records)
     devices = devices.join(spreading_factors)
     # get best gateway snr
-    best_gateway_snr = get_device_best_gateway_snr(records)
+    best_gateway_snr = ut.get_device_best_gateway_snr(records)
     devices = devices.join(best_gateway_snr)
     # get device traffic metrics
-    device_toa_metrics = get_device_toa_metrics(records)
+    device_toa_metrics = ut.get_device_toa_metrics(records)
     devices = devices.join(device_toa_metrics)
-    device_pdr_metrics = get_device_pdr_metrics(records)
+    device_pdr_metrics = ut.get_device_pdr_metrics(records)
     devices = devices.join(device_pdr_metrics)
     # compute measured bitrate and scale estimate via pdr
     bitrate = devices["phy_bytes"] * 8 / EPOCH  # bit/s
@@ -74,7 +79,7 @@ with DataBase() as db, NetworkServer() as ns:
     devices = globecom22(devices, CLUSTERS["max_ot"], len(FREQUENCIES))
     print(devices)
 
-    # set_channel_mask_configs(ns, devices["chmask"])
+    ut.set_channel_mask_configs(ns, devices["chmask"])
 
-    # input("\nPress enter to clean-up configs and terminate program...")
-    # delete_channel_mask_configs(ns, list(devices.index))
+    input("\nPress enter to clean-up configs and terminate program...")
+    ut.delete_channel_mask_configs(ns, dev_euis)

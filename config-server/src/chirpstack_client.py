@@ -104,7 +104,7 @@ class ChirpStackClient:
     #####################################################################################
 
     def set_device_config(
-        self, dev_eui: str, config_store: api.DeviceConfigStore
+        self, dev_eui: str, config_store: DeviceConfigStore
     ) -> None:
         try:
             self.device_config_store_api.Set(
@@ -119,7 +119,7 @@ class ChirpStackClient:
                 raise NotFoundError(f"Device not found (id: {dev_eui})") from e
             raise e
 
-    def get_device_config(self, dev_eui: str) -> api.DeviceConfigStore:
+    def get_device_config(self, dev_eui: str) -> DeviceConfigStore:
         try:
             resp: api.GetDeviceConfigStoreResponse = self.device_config_store_api.Get(
                 api.GetDeviceConfigStoreRequest(dev_eui=dev_eui),

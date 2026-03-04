@@ -2,7 +2,7 @@ import time
 
 import pandas as pd
 
-from .utilities import *
+from . import utilities as ut
 
 LOOKBACK_ORIZON = 1 * 60 * 60  # seconds
 
@@ -15,25 +15,25 @@ CONFIG_DECAY_THRESHOLD = 1 * 60 * 60  # seconds
 DECAYING = pd.DataFrame()
 
 
-def run(ns: NS, db: DB):
+def run(ns: ut.NS, db: ut.DB):
     # load devices
-    devices = get_devices(ns)[["name"]]
+    devices = ut.get_devices(ns)[["name"]]
     dev_euis = list(devices.index)
 
     # load records and compute packet metrics
-    records = get_traffic_records(db, dev_euis, LOOKBACK_ORIZON)
-    records = clean_traffic_records(records)
-    packet_toa_metrics = get_packet_toa_metrics(records)
+    records = ut.get_traffic_records(db, dev_euis, LOOKBACK_ORIZON)
+    records = ut.clean_traffic_records(records)
+    packet_toa_metrics = ut.get_packet_toa_metrics(records)
     records = records.join(packet_toa_metrics)
 
     # get device traffic metrics
-    device_toa_metrics = get_device_toa_metrics(records)
+    device_toa_metrics = ut.get_device_toa_metrics(records)
     devices = devices.join(device_toa_metrics)
-    device_pdr_metrics = get_device_pdr_metrics(records)
+    device_pdr_metrics = ut.get_device_pdr_metrics(records)
     devices = devices.join(device_pdr_metrics)
 
     # load frequencies from server configs
-    frequencies = get_freq_indices(ns, dev_euis)
+    frequencies = ut.get_freq_indices(ns, dev_euis)
     if frequencies.empty:
         print("No device seen (yet), postponing.")
         return
@@ -48,7 +48,7 @@ def run(ns: NS, db: DB):
     devices = devices.join(enabled.rename("chmask"))
     print(devices)
 
-    set_channel_mask_configs(ns, devices["chmask"])
+    ut.set_channel_mask_configs(ns, devices["chmask"])
 
 
 def get_device_freq_stats(records: pd.DataFrame) -> pd.DataFrame:
@@ -118,9 +118,9 @@ def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
 
 
 def cleanup(ns):
-    devices = get_devices(ns)
+    devices = ut.get_devices(ns)
     dev_euis = list(devices.index)
-    delete_channel_mask_configs(ns, dev_euis)
+    ut.delete_channel_mask_configs(ns, dev_euis)
 
 
 def set_lookback_orizon(seconds: int):
