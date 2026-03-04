@@ -2,7 +2,7 @@ import sys
 import time
 
 from src.config import config
-from src.utilities import NetworkServer, DataBase
+from src.utilities import NetworkServer, DataBase, on_sigterm, ConfigServerError
 
 #            CONTROL LOOP: ARCHITECTURE AND INFORMATION FLOW DIAGRAM
 #
@@ -62,13 +62,10 @@ from src.utilities import NetworkServer, DataBase
 
 import src.freq_streering as algorithm
 
-# import global algorithm configs to edit them
-from src.freq_streering import LOOKBACK_ORIZON, CONFIG_DECAY_THRESHOLD
+CONTROL_LOOP_PERIODICITY = 5  # seconds
 
-CONTROL_LOOP_PERIODICITY = 60  # seconds
-
-LOOKBACK_ORIZON = 1 * 60 * 60  # seconds
-CONFIG_DECAY_THRESHOLD = 1 * 60 * 60  # seconds
+algorithm.set_lookback_orizon(1 * 60 * 60)  # seconds
+algorithm.set_config_decay_threshold(1 * 60 * 60)  # seconds
 
 
 def main():
@@ -83,13 +80,24 @@ def main():
             return 1
 
     with NetworkServer() as ns, DataBase() as db:
+
+        @on_sigterm
+        def cleanup():
+            try:
+                algorithm.cleanup(ns)
+                print("Configs cleared")
+            except ConfigServerError:
+                pass
+
         try:
             while True:
-                algorithm.run(ns, db)
+                try:
+                    algorithm.run(ns, db)
+                except ConfigServerError as e:
+                    print(e)
                 time.sleep(CONTROL_LOOP_PERIODICITY)
         except KeyboardInterrupt:
-            algorithm.cleanup(ns)
-            print("\nConfigs cleared")
+            cleanup()
 
 
 if __name__ == "__main__":

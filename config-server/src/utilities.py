@@ -5,16 +5,32 @@ import scipy.special as sp
 import pandas as pd
 
 from .config import config
-from .chirpstack_client import ChirpStackClient, DeviceConfigStore
-from .influxdb_client_wrapper import InfluxDBClientWrapper
+from .chirpstack_client import ChirpStackClient as NS
+from .influxdb_client_wrapper import InfluxDBClientWrapper as DB
+from .chirpstack_client import DeviceConfigStore, to_dict, NotFoundError
+
+
+class ConfigServerError(Exception):
+    name = "ConfigServerError"
+    def __init__(self, cause):
+        self.args = (f"{self.name}: {cause}",)
+        super().__init__(*self.args)
+
+
+class NetworkServerError(ConfigServerError):
+    name = "NetworkServerError"
+
+
+class DataBaseError(ConfigServerError):
+    name = "DataBaseError"
 
 
 def NetworkServer():
-    return ChirpStackClient(config.CHIRPSTACK_ENDPOINT, config.CHIRPSTACK_TOKEN)
+    return NS(config.CHIRPSTACK_ENDPOINT, config.CHIRPSTACK_TOKEN)
 
 
 def DataBase():
-    return InfluxDBClientWrapper(
+    return DB(
         config.INFLUXDB_URL,
         config.INFLUXDB_TOKEN,
         config.INFLUXDB_ORG,
@@ -41,27 +57,57 @@ def capacity_from_pdr(pdr):
     return -0.5 * (a + sp.lambertw(-(a / np.exp(a))).real * np.exp(gt) * np.array(pdr))
 
 
-def get_devices(ns: ChirpStackClient) -> pd.DataFrame:
-    tenant_id = ns.get_tenant_id(config.CHIRPSTACK_TENANT)
-    application_id = ns.get_application_ids(tenant_id)[0]
-    device_list = ns.list_devices(application_id)
+def get_devices(ns: NS) -> pd.DataFrame:
+    try:
+        tenant_id = ns.get_tenant_id(config.CHIRPSTACK_TENANT)
+        application_id = ns.get_application_ids(tenant_id)[0]
+        device_list = ns.list_devices(application_id)
+    except Exception as e:
+        raise NetworkServerError(e) from e
     device_list = pd.DataFrame(device_list)
     device_list = device_list.set_index("dev_eui").sort_index()
     return device_list
 
 
-def set_channel_mask_configs(ns: ChirpStackClient, configs: pd.Series):
+def get_freq_indices(ns: NS, dev_euis: list[str]) -> pd.DataFrame:
+    def get_channels(dev_eui):
+        try:
+            params = to_dict(ns.get_device_current_params(dev_eui))
+        except NotFoundError:
+            return pd.DataFrame()
+        except Exception as e:
+            raise NetworkServerError(e) from e
+        channels = pd.DataFrame(params["channels"]).T["frequency"].reset_index()
+        channels = channels.assign(dev_eui=dev_eui, index=channels["index"].astype(int))
+        channels = channels.set_index(["dev_eui", "frequency"]).sort_values("index")
+        return channels
+
+    return pd.concat((get_channels(d) for d in dev_euis), axis=0)
+
+
+def set_channel_mask_configs(ns: NS, configs: pd.Series):
     for dev_eui, chmask in configs.items():
         config_store = DeviceConfigStore(enabled_uplink_channel_indices=chmask)
-        ns.set_device_config(str(dev_eui), config_store)
+        try:
+            ns.set_device_config(str(dev_eui), config_store)
+        except Exception as e:
+            raise NetworkServerError(e) from e
 
 
-def delete_channel_mask_configs(ns: ChirpStackClient, dev_euis: list[str]):
-    _ = [ns.delete_device_config(d) for d in dev_euis]
+def delete_channel_mask_configs(ns: NS, dev_euis: list[str]):
+    for d in dev_euis:
+        try:
+            ns.delete_device_config(d)
+        except Exception as e:
+            raise NetworkServerError(e) from e
 
 
-def get_traffic_records(db: InfluxDBClientWrapper, since_seconds) -> pd.DataFrame:
-    return db.get_traffic_records(f"-{since_seconds}s")
+def get_traffic_records(db: DB, dev_euis: list[str], since_s: int) -> pd.DataFrame:
+    try:
+        records = db.get_traffic_records(f"-{since_s}s", dev_eui=dev_euis)
+    except Exception as e:
+        raise DataBaseError(e) from e
+    return records
 
 
 def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
@@ -133,16 +179,20 @@ def drop_devices_with_non_unique_sf(records: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_phy_payload_len(records: pd.DataFrame) -> pd.Series:
+    df = records  # shallow copy
+
     def phy_payload_len(f_port, f_opts_len, frm_payload_len):
         f_port_present = f_port.notna()
         # Fixed 12B for MHDR(1) + DevAddr(4) + FCtrl(1) + FCnt(2) + MIC(4)
         return 12 + f_port_present + f_opts_len + frm_payload_len
 
-    args = ("f_port", "f_opts_len", "frm_payload_len")
-    return phy_payload_len(*(records[a] for a in args)).rename("phy_payload_len")
+    df = phy_payload_len(df["f_port"], df["f_opts_len"], df["frm_payload_len"])
+    return df.rename("phy_payload_len")
 
 
 def get_time_on_air(records: pd.DataFrame) -> pd.Series:
+    df = records  # shallow copy
+
     def toa(pl, sf, bw, cr, crc, n_preamble=8, de=1, ih=0):
         # see, SX1272 datasheet
         t_sym = 2**sf / bw
@@ -153,8 +203,8 @@ def get_time_on_air(records: pd.DataFrame) -> pd.Series:
         t_payload = n_payload * t_sym
         return t_premble + t_payload
 
-    args = ("phy_payload_len", "sf", "bw", "cr", "crc")
-    return toa(*(records[a] for a in args)).rename("time_on_air")
+    df = toa(df["phy_payload_len"], df["sf"], df["bw"], df["cr"], df["crc"])
+    return df.rename("time_on_air")
 
 
 def get_device_sf(records: pd.DataFrame) -> pd.Series:

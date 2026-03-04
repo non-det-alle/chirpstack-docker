@@ -5,6 +5,10 @@ from google.protobuf.json_format import MessageToDict, ParseDict
 from google.protobuf.message import Message
 
 
+class NotFoundError(Exception):
+    pass
+
+
 def to_dict(msg: Message) -> dict:
     return MessageToDict(
         msg,
@@ -37,7 +41,7 @@ class ChirpStackClient:
             metadata=self.metadata,
         )
         if resp.total_count != 1:
-            raise ValueError("Missing or duplicated tenant name.")
+            raise NotFoundError("Missing or duplicated tenant name")
         return resp.result[0].id
 
     def get_application_ids(self, tenant_id: str) -> list[str]:
@@ -112,7 +116,7 @@ class ChirpStackClient:
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
                 # Trying to set config for non-existent device
-                raise ValueError(f"Device not found (id: {dev_eui})")
+                raise NotFoundError(f"Device not found (id: {dev_eui})") from e
             raise e
 
     def get_device_config(self, dev_eui: str) -> api.DeviceConfigStore:
@@ -123,7 +127,7 @@ class ChirpStackClient:
             )
         except grpc.RpcError as e:
             if e.code() == grpc.StatusCode.NOT_FOUND:
-                raise ValueError(f"Config store not found (id: {dev_eui})")
+                raise NotFoundError(f"Config store not found (id: {dev_eui})") from e
             raise e
         return resp.device_config_store
 
@@ -172,11 +176,11 @@ class ChirpStackClient:
             match e.code():
                 case grpc.StatusCode.NOT_FOUND:
                     # Trying to get config alignment for non existent device or config store
-                    raise ValueError(e.details())
+                    raise NotFoundError(e.details()) from e
                 case grpc.StatusCode.FAILED_PRECONDITION | grpc.StatusCode.UNAVAILABLE:
                     # Trying to get alignment for unactivated device (either join or manual)
                     # or for unseen activated device after manual activation
-                    raise ValueError(e.details())
+                    raise NotFoundError(e.details()) from e
             raise e
         return resp
 
@@ -194,10 +198,10 @@ class ChirpStackClient:
             match e.code():
                 case grpc.StatusCode.NOT_FOUND:
                     # Trying to get params for not existent device
-                    raise ValueError(f"Device not found (id: {dev_eui})")
+                    raise NotFoundError(f"Device not found (id: {dev_eui})") from e
                 case grpc.StatusCode.FAILED_PRECONDITION | grpc.StatusCode.UNAVAILABLE:
                     # Trying to get params for unactivated device (either join or manual)
                     # or for unseen activated device after manual activation
-                    raise ValueError(e.details())
+                    raise NotFoundError(e.details()) from e
             raise e
         return resp

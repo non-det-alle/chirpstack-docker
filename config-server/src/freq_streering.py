@@ -3,7 +3,6 @@ import time
 import pandas as pd
 
 from .utilities import *
-from .chirpstack_client import to_dict
 
 LOOKBACK_ORIZON = 1 * 60 * 60  # seconds
 
@@ -16,15 +15,17 @@ CONFIG_DECAY_THRESHOLD = 1 * 60 * 60  # seconds
 DECAYING = pd.DataFrame()
 
 
-def run(ns: ChirpStackClient, db: InfluxDBClientWrapper):
-    # load records
-    records = get_traffic_records(db, LOOKBACK_ORIZON)
+def run(ns: NS, db: DB):
+    # load devices
+    devices = get_devices(ns)[["name"]]
+    dev_euis = list(devices.index)
+
+    # load records and compute packet metrics
+    records = get_traffic_records(db, dev_euis, LOOKBACK_ORIZON)
     records = clean_traffic_records(records)
     packet_toa_metrics = get_packet_toa_metrics(records)
     records = records.join(packet_toa_metrics)
 
-    # load devices
-    devices = get_devices(ns)[["name"]]
     # get device traffic metrics
     device_toa_metrics = get_device_toa_metrics(records)
     devices = devices.join(device_toa_metrics)
@@ -32,7 +33,7 @@ def run(ns: ChirpStackClient, db: InfluxDBClientWrapper):
     devices = devices.join(device_pdr_metrics)
 
     # load frequencies from server configs
-    frequencies = get_freq_indices(ns, list(devices.index))
+    frequencies = get_freq_indices(ns, dev_euis)
     if frequencies.empty:
         print("No device seen (yet), postponing.")
         return
@@ -48,20 +49,6 @@ def run(ns: ChirpStackClient, db: InfluxDBClientWrapper):
     print(devices)
 
     set_channel_mask_configs(ns, devices["chmask"])
-
-
-def get_freq_indices(ns: ChirpStackClient, dev_euis: list[str]) -> pd.DataFrame:
-    def get_channels(dev_eui):
-        try:
-            params = ns.get_device_current_params(dev_eui)
-            channels = pd.DataFrame(to_dict(params)["channels"]).T["frequency"].reset_index()
-            channels = channels.assign(dev_eui=dev_eui, index=channels["index"].astype(int))
-            channels = channels.set_index(["dev_eui", "frequency"]).sort_values("index")
-        except ValueError:
-            return pd.DataFrame()
-        return channels
-
-    return pd.concat((get_channels(d) for d in dev_euis), axis=0)
 
 
 def get_device_freq_stats(records: pd.DataFrame) -> pd.DataFrame:
@@ -130,8 +117,22 @@ def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
     return enabled
 
 
-@on_sigterm
 def cleanup(ns):
     devices = get_devices(ns)
     dev_euis = list(devices.index)
     delete_channel_mask_configs(ns, dev_euis)
+
+
+def set_lookback_orizon(seconds: int):
+    global LOOKBACK_ORIZON
+    LOOKBACK_ORIZON = seconds
+
+
+def set_low_zscore_threshold(threshold: float):
+    global LOW_ZSCORE_THRESHOLD
+    LOW_ZSCORE_THRESHOLD = threshold
+
+
+def set_config_decay_threshold(seconds: int):
+    global CONFIG_DECAY_THRESHOLD
+    CONFIG_DECAY_THRESHOLD = seconds
