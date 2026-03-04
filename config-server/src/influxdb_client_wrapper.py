@@ -23,6 +23,7 @@ class InfluxDBClientWrapper:
         stop: str = "now()",
         dev_eui: str | list[str] | None = None,
         direction: str = "u",
+        exclude_join: bool = True,
     ) -> pd.DataFrame:
         """Get DataFrame containing frame_log records of frames.
 
@@ -43,6 +44,13 @@ class InfluxDBClientWrapper:
                 dev_eui = [dev_eui]
             fmt = "[" + ",".join([f'"{v}"' for v in dev_eui]) + "]"
             query += f" |> filter(fn: (r) => contains(value: r.dev_eui, set: {fmt}))"
+
+        if exclude_join and (direction == "u" or direction == "b"):
+            f_type = "JoinRequest"
+            query += f'|> filter(fn: (r) => r["phy_payload.mhdr.f_type"] != "{f_type}")'
+        if exclude_join and (direction == "d" or direction == "b"):
+            f_type = "JoinAccept"
+            query += f'|> filter(fn: (r) => r["phy_payload.mhdr.f_type"] != "{f_type}")'
 
         if direction == "u":
             query += (
