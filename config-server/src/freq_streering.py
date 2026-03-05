@@ -4,7 +4,7 @@ import pandas as pd
 
 from . import utilities as ut
 
-LOOKBACK_ORIZON = 1 * 60 * 60  # seconds
+LOOKBACK_HORIZON = 1 * 60 * 60  # seconds
 
 LOW_ZSCORE_THRESHOLD = -3
 
@@ -21,7 +21,7 @@ def run(ns: ut.NS, db: ut.DB):
     dev_euis = list(devices.index)
 
     # load traffic records
-    records = ut.get_traffic_records(db, dev_euis, LOOKBACK_ORIZON)
+    records = ut.get_traffic_records(db, dev_euis, LOOKBACK_HORIZON)
     records = ut.clean_traffic_records(records)
 
     # load frequencies from server device session
@@ -40,6 +40,8 @@ def run(ns: ut.NS, db: ut.DB):
     # (optional) aggregate device traffic metrics
     packet_toa_metrics = ut.get_packet_toa_metrics(records)
     records = records.join(packet_toa_metrics)
+    device_sfs = ut.get_device_sf(records)
+    devices = devices.join(device_sfs)
     device_toa_metrics = ut.get_device_toa_metrics(records)
     devices = devices.join(device_toa_metrics)
     device_pdr_metrics = ut.get_device_pdr_metrics(records)
@@ -136,9 +138,9 @@ def cleanup(ns):
     ut.delete_channel_mask_configs(ns, dev_euis)
 
 
-def set_lookback_orizon(seconds: int):
-    global LOOKBACK_ORIZON
-    LOOKBACK_ORIZON = seconds
+def set_lookback_horizon(seconds: int):
+    global LOOKBACK_HORIZON
+    LOOKBACK_HORIZON = seconds
 
 
 def set_low_zscore_threshold(threshold: float):
