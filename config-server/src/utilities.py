@@ -9,6 +9,8 @@ from .chirpstack_client import ChirpStackClient as NS
 from .influxdb_client_wrapper import InfluxDBClientWrapper as DB
 from .chirpstack_client import DeviceConfigStore, to_dict, NotFoundError
 
+pd.set_option("display.max_columns", None)
+
 
 class ConfigServerError(Exception):
     name = "ConfigServerError"
