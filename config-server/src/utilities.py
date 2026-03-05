@@ -153,10 +153,10 @@ def clean_traffic_records(records: pd.DataFrame) -> pd.DataFrame:
         df = records  # shallow copy
         # get_phy_payload_len
         df["f_opts_len"] = df["f_opts_len"].astype(int)
-        if "frm_payload" in df:
-            df["frm_payload_len"] = df["frm_payload"].str.len().div(2).astype(int)
-        else:
-            df["frm_payload_len"] = 0
+        # if "frm_payload" in df:
+        #     df["frm_payload_len"] = df["frm_payload"].str.len().div(2).astype(int)
+        # else:
+        #     df["frm_payload_len"] = 0
         # get_toa
         df["sf"] = df["sf"].astype(int)
         df["bw"] = df["bw"].astype(int)

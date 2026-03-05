@@ -38,12 +38,12 @@ def run(ns: ut.NS, db: ut.DB):
         raise ut.ConfigServerError("Not enough data")
 
     # (optional) aggregate device traffic metrics
-    packet_toa_metrics = ut.get_packet_toa_metrics(records)
-    records = records.join(packet_toa_metrics)
+    # packet_toa_metrics = ut.get_packet_toa_metrics(records)
+    # records = records.join(packet_toa_metrics)
     device_sfs = ut.get_device_sf(records)
     devices = devices.join(device_sfs)
-    device_toa_metrics = ut.get_device_toa_metrics(records)
-    devices = devices.join(device_toa_metrics)
+    # device_toa_metrics = ut.get_device_toa_metrics(records)
+    # devices = devices.join(device_toa_metrics)
     device_pdr_metrics = ut.get_device_pdr_metrics(records)
     devices = devices.join(device_pdr_metrics)
 
