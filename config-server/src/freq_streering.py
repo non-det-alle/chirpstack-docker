@@ -67,7 +67,7 @@ def get_device_freq_stats(records: pd.DataFrame) -> pd.DataFrame:
     df = deduplicate_records(df).sort_values("_time")
 
     # count received packets per device frequency
-    recv = df.groupby(["dev_eui", "frequency"])["f_cnt"].count()
+    recv = df.groupby(["dev_eui", "frequency"])["f_cnt"].count().fillna(0)
     recv = recv.astype(float).rename("nrecv")
 
     # get device frame counter diff, manage disconnections and starting values
