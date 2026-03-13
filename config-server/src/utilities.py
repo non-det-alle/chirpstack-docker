@@ -80,7 +80,8 @@ def get_freq_indices(ns: NS, dev_euis: list[str]) -> pd.DataFrame:
             return pd.DataFrame()
         except Exception as e:
             raise NetworkServerError(e) from e
-        channels = pd.DataFrame(params["channels"]).T["frequency"].reset_index()
+        channels = pd.DataFrame(params["channels"]).T
+        channels = channels[["frequency", "enabled"]].reset_index()
         channels = channels.assign(dev_eui=dev_eui, index=channels["index"].astype(int))
         channels = channels.set_index(["dev_eui", "frequency"]).sort_values("index")
         return channels
