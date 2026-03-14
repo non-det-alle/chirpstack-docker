@@ -1,14 +1,14 @@
 import time
 
 import pandas as pd
+import numpy as np
 import scipy.stats as sps
 
 from . import utilities as ut
 
 LOOKBACK_HORIZON = 1 * 60 * 60  # seconds
 
-LOW_ZSCORE_THRESHOLD = -3
-LOW_TSTUDENT_QUANTILE_THRESHOLD = 0.1
+PVALUE_THRESHOLD = 0.05
 
 CONFIG_DECAY_THRESHOLD = 1 * 60 * 60  # seconds
 
@@ -30,8 +30,8 @@ def run(ns: ut.NS, db: ut.DB):
 
     # load frequencies from server device session
     frequencies = ut.get_freq_indices(ns, dev_euis)
-    # compute and join freq stats from records
-    freq_stats = get_device_freq_stats(frequencies, records)
+    # compute and join freq test results from records
+    freq_stats = device_freq_nrecv_ttest(frequencies, records)
     frequencies = frequencies.join(freq_stats)
     print(frequencies)
 
@@ -56,7 +56,7 @@ def run(ns: ut.NS, db: ut.DB):
     ut.set_channel_mask_configs(ns, devices["chmask"])
 
 
-def get_device_freq_stats(freqs: pd.DataFrame, records: pd.DataFrame) -> pd.DataFrame:
+def device_freq_nrecv_ttest(freqs: pd.DataFrame, records: pd.DataFrame) -> pd.DataFrame:
     df = records  # shallow copy
 
     def deduplicate_records(records: pd.DataFrame) -> pd.DataFrame:
@@ -66,37 +66,53 @@ def get_device_freq_stats(freqs: pd.DataFrame, records: pd.DataFrame) -> pd.Data
     # deduplicate packets, sort by timestamp
     df = deduplicate_records(df).sort_values("_time")
 
-    # count device used frequencies
-    recv = df.groupby(["dev_eui", "frequency"])["f_cnt"].count().rename("nrecv")
-    recv = recv.reindex(freqs.index).fillna(0)
+    # count device received packets per frequency, reindex to all frequencies
+    nrecv = df.groupby(["dev_eui", "frequency"])["f_cnt"].count().rename("nrecv")
+    nrecv = nrecv.reindex(freqs.index).fillna(0)
+
+    def reindex_to_device_freq(s: pd.Series) -> pd.Series:
+        return s.reindex(freqs.index.get_level_values("dev_eui")).set_axis(freqs.index)
+
+    # statistical test on recv with truncated T Student distributon for low sample sizes
+    mean = nrecv.groupby("dev_eui").mean().rename("mean")
+    std = nrecv.groupby("dev_eui").std().rename("std")
+    mean = reindex_to_device_freq(mean)
+    std = reindex_to_device_freq(std)
+
+    # compute the number of active frequencies per device (i.e. our sample size)
+    nfreq = freqs[freqs["enabled"]].groupby("dev_eui")["index"].count().rename("nfreq")
+    nfreq = reindex_to_device_freq(nfreq)
 
     # get device frame counter diff, manage disconnections and starting values
-    diff = df.set_index("dev_eui").groupby("dev_eui")["f_cnt"].diff()
-    diff = diff.mask(lambda x: x <= 0, None).fillna(1)
-    # sum-up sent packets
-    sent = diff.groupby("dev_eui").sum().rename("nsent")
-    sent = sent.reindex(freqs.index.get_level_values("dev_eui")).set_axis(freqs.index)
+    fcnt_diff = df.set_index("dev_eui").groupby("dev_eui")["f_cnt"].diff()
+    fcnt_diff = fcnt_diff.mask(lambda x: x <= 0, None).fillna(1)
+    # sum-up to compute sent packets estimate
+    nsent = fcnt_diff.groupby("dev_eui").sum().rename("nsent")
+    nsent = reindex_to_device_freq(nsent)
 
-    # compute the number of active frequencies per device
-    nfreq = freqs[freqs["enabled"]].groupby("dev_eui")["index"].count().rename("nfreq")
-    nfreq = nfreq.reindex(freqs.index.get_level_values("dev_eui")).set_axis(freqs.index)
+    # configure truncation bounds
+    lower = 0
+    # max theoretical number of receptions per frequency
+    upper = pd.Series(np.maximum(nrecv, nsent / nfreq)).groupby("dev_eui").max()
+    upper = reindex_to_device_freq(upper)
 
-    # compute the packet reception share
-    share = (recv.astype(float) / sent).rename("share")
+    # warn: captures mean, std, nfreq
+    def get_t_probability(value: pd.Series | int) -> pd.Series:
+        # Nan can happen of dividing by 0 due to all same recv amounts
+        t_value = (value - mean) / std * nfreq**0.5
+        return pd.Series(sps.t.cdf(t_value, nfreq - 1), freqs.index)
 
-    # join metrics
-    df = pd.concat([nfreq, recv, sent, share], axis=1)
+    # compute probability values for observation, lower and upper bound
+    p_obser = get_t_probability(nrecv)
+    p_lower = get_t_probability(lower)
+    p_upper = get_t_probability(upper)
 
-    # compute stats
-    df = df.join(recv.groupby("dev_eui").aggregate(["mean", "std"]))
-    # Nan can happen of dividing by 0 due to all same recv amounts
-    df = df.join(((recv - df["mean"]) / df["std"]).fillna(0).rename("zscore"))
-    df = df.join((df["zscore"] * (nfreq**0.5)).fillna(0).rename("tscore"))
-    # df = df.join((df["zscore"] <= LOW_ZSCORE_THRESHOLD).rename("ztest"))
-    low_student_threshold = sps.t.ppf(LOW_TSTUDENT_QUANTILE_THRESHOLD, df["nfreq"] - 1)
-    df = df.join((df["tscore"] <= low_student_threshold).rename("ttest"))
+    # compute truncated probability and evaluate outliers
+    p_trunc = ((p_obser - p_lower) / (p_upper - p_lower)).rename("pvalue")
+    outlier = (p_trunc < PVALUE_THRESHOLD).rename("outlier")
 
-    return df
+    # output relevant metrics
+    return pd.concat([nfreq, nsent, nrecv, p_trunc, outlier], axis=1)
 
 
 def get_active_devices(devices: pd.DataFrame, records: pd.DataFrame):
@@ -111,7 +127,7 @@ def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
     now = time.time()
 
     # manage unseen data: cast NaN to bool
-    outliers = frequencies["ttest"].astype(bool)
+    outliers = frequencies["outlier"].astype(bool)
 
     # set non-outliers to enabled frequency indices
     enabled = frequencies.loc[~outliers, "index"]
@@ -150,14 +166,9 @@ def set_lookback_horizon(seconds: int):
     LOOKBACK_HORIZON = seconds
 
 
-def set_low_zscore_threshold(threshold: float):
-    global LOW_ZSCORE_THRESHOLD
-    LOW_ZSCORE_THRESHOLD = threshold
-
-
-def set_low_tstudent_quantile_threshold(threshold: float):
-    global LOW_TSTUDENT_QUANTILE_THRESHOLD
-    LOW_TSTUDENT_QUANTILE_THRESHOLD = threshold
+def set_low_tstudent_pvalue_threshold(threshold: float):
+    global PVALUE_THRESHOLD
+    PVALUE_THRESHOLD = threshold
 
 
 def set_config_decay_threshold(seconds: int):
