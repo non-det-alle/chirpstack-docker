@@ -143,9 +143,10 @@ def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
         # drop configs not yet delivered that somehow got better
         DECAYING = DECAYING[~DECAYING["index"].isin(enabled)]
         # evaluate decay threshold
-        decayed = DECAYING["timestamp"] + CONFIG_DECAY_THRESHOLD > now
+        decayed = DECAYING["timestamp"] + CONFIG_DECAY_THRESHOLD < now
         # re-add them to enabled set without timestamp
         enabled = pd.concat([enabled, DECAYING.loc[decayed, "index"]], axis=0)
+        enabled = enabled.sort_values()
         # remove decayed configs from global table
         DECAYING = DECAYING[~decayed]
 
