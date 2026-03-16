@@ -132,7 +132,7 @@ def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
     now = time.time()
 
     # manage unseen data: cast NaN to bool
-    outliers = frequencies["outlier"].astype(bool)
+    outliers = frequencies["enabled"] & frequencies["outlier"].astype(bool)
 
     # set non-outliers to enabled frequency indices
     enabled = frequencies.loc[~outliers, "index"]
