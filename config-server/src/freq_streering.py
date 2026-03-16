@@ -25,8 +25,6 @@ def run(ns: ut.NS, db: ut.DB):
     # load traffic records
     records = ut.get_traffic_records(db, dev_euis, LOOKBACK_HORIZON)
     records = ut.clean_traffic_records(records)
-    if records.empty:
-        raise ut.ConfigServerError("Not enough data")
 
     # load frequencies from server device session
     frequencies = ut.get_freq_indices(ns, dev_euis)
@@ -57,6 +55,7 @@ def run(ns: ut.NS, db: ut.DB):
 
 
 def device_freq_nrecv_ttest(freqs: pd.DataFrame, records: pd.DataFrame) -> pd.DataFrame:
+    """statistical test on recv with truncated T Student distributon for low sample sizes"""
     df = records  # shallow copy
 
     def deduplicate_records(records: pd.DataFrame) -> pd.DataFrame:
@@ -66,22 +65,28 @@ def device_freq_nrecv_ttest(freqs: pd.DataFrame, records: pd.DataFrame) -> pd.Da
     # deduplicate packets, sort by timestamp
     df = deduplicate_records(df).sort_values("_time")
 
-    # count device received packets per frequency, reindex to all frequencies
-    nrecv = df.groupby(["dev_eui", "frequency"])["f_cnt"].count().rename("nrecv")
-    nrecv = nrecv.reindex(freqs.index).fillna(0)
-
+    # this is for when we compute device-level metrics that need to be reindexed to every device frequency
     def reindex_to_device_freq(s: pd.Series) -> pd.Series:
         return s.reindex(freqs.index.get_level_values("dev_eui")).set_axis(freqs.index)
-
-    # statistical test on recv with truncated T Student distributon for low sample sizes
-    mean = nrecv.groupby("dev_eui").mean().rename("mean")
-    std = nrecv.groupby("dev_eui").std().rename("std")
-    mean = reindex_to_device_freq(mean)
-    std = reindex_to_device_freq(std)
 
     # compute the number of active frequencies per device (i.e. our sample size)
     nfreq = freqs[freqs["enabled"]].groupby("dev_eui")["index"].count().rename("nfreq")
     nfreq = reindex_to_device_freq(nfreq)
+
+    # count device received packets per frequency, reindex to all frequencies
+    nrecv = df.groupby(["dev_eui", "frequency"])["f_cnt"].count().rename("nrecv")
+    nrecv = nrecv.reindex(freqs.index)  # expand to unseen/disabled channel
+
+    # fill Nan with 0 for active freqs so they are not ignored in the test
+    # WARNING: this generates false positives if the device has been recently 
+    # activated and no packets have been received yet on a certain frequency!
+    nrecv[freqs["enabled"]] = nrecv[freqs["enabled"]].fillna(0)
+
+    # compute empirical mean and standard deviation
+    mean = nrecv.groupby("dev_eui").mean().rename("mean")
+    mean = reindex_to_device_freq(mean)
+    std = nrecv.groupby("dev_eui").std().rename("std")
+    std = reindex_to_device_freq(std)
 
     # get device frame counter diff, manage disconnections and starting values
     fcnt_diff = df.set_index("dev_eui").groupby("dev_eui")["f_cnt"].diff()
