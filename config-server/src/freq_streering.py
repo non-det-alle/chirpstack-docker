@@ -11,10 +11,12 @@ LOOKBACK_HORIZON = 1 * 60 * 60  # seconds
 PVALUE_THRESHOLD = 0.05
 
 CONFIG_DECAY_THRESHOLD = 1 * 60 * 60  # seconds
+CONFIG_RECOVER_THRESHOLD = 1 * 60 * 60  # seconds
 
 
 # mutable global table
-DECAYING = pd.DataFrame()
+DECAYING = pd.Series()
+RECOVERING = pd.Series()
 
 
 def run(ns: ut.NS, db: ut.DB):
@@ -44,11 +46,8 @@ def run(ns: ut.NS, db: ut.DB):
     devices = devices.join(device_pdr_metrics)
 
     # generate chmask configs
-    enabled = get_enabled_with_decay(frequencies)
-    enabled = enabled.groupby("dev_eui").aggregate(list)
-    # only consider active devices
-    active = get_active_devices(devices, records)
-    devices = devices[active].join(enabled.rename("chmask"))
+    chmask = get_chmask_with_decay_and_recover(frequencies)
+    devices = devices.join(chmask)
     print(devices)
 
     ut.set_channel_mask_configs(ns, devices["chmask"])
@@ -78,7 +77,7 @@ def device_freq_nrecv_ttest(freqs: pd.DataFrame, records: pd.DataFrame) -> pd.Da
     nrecv = nrecv.reindex(freqs.index)  # expand to unseen/disabled channel
 
     # fill Nan with 0 for active freqs so they are not ignored in the test
-    # WARNING: this generates false positives if the device has been recently 
+    # WARNING: this generates false positives if the device has been recently
     # activated and no packets have been received yet on a certain frequency!
     nrecv[freqs["enabled"]] = nrecv[freqs["enabled"]].fillna(0)
 
@@ -125,40 +124,46 @@ def get_active_devices(devices: pd.DataFrame, records: pd.DataFrame):
     return devices.index.isin(active)
 
 
-def get_enabled_with_decay(frequencies: pd.DataFrame) -> pd.Series:
+def get_chmask_with_decay_and_recover(freqs: pd.DataFrame) -> pd.Series:
     global DECAYING
+    global RECOVERING
 
     # store current timestamp
     now = time.time()
 
-    # manage unseen data: cast NaN to bool
-    outliers = frequencies["enabled"] & frequencies["outlier"].astype(bool)
+    # pop expired decaying configs
+    decayed = DECAYING[now > DECAYING + CONFIG_DECAY_THRESHOLD]
+    DECAYING = DECAYING.drop(decayed.index)
 
-    # set non-outliers to enabled frequency indices
-    enabled = frequencies.loc[~outliers, "index"]
-    # restore decayed configurations
-    if not DECAYING.empty:
-        # drop obsolete decaying configs (e.g., due to session reset)
-        DECAYING = DECAYING[DECAYING["index"].isin(frequencies["index"])]
-        # drop configs not yet delivered that somehow got better
-        DECAYING = DECAYING[~DECAYING["index"].isin(enabled)]
-        # evaluate decay threshold
-        decayed = DECAYING["timestamp"] + CONFIG_DECAY_THRESHOLD < now
-        # re-add them to enabled set without timestamp
-        enabled = pd.concat([enabled, DECAYING.loc[decayed, "index"]], axis=0)
-        enabled = enabled.sort_values().astype(int)
-        # remove decayed configs from global table
-        DECAYING = DECAYING[~decayed]
+    # pop expired recovering configs
+    recovered = RECOVERING[now > RECOVERING + CONFIG_RECOVER_THRESHOLD]
+    RECOVERING = RECOVERING.drop(recovered.index)
 
-    # set outliers to disabled frequency indices
-    disabled = frequencies.loc[outliers, ["index"]]
-    # filter out channels with an already running decay
-    if not DECAYING.empty:
-        disabled = disabled[~disabled.isin(DECAYING[["index"]])]
-    # update decaying table with new disabled channels
-    DECAYING = pd.concat([DECAYING, disabled.assign(timestamp=now)], axis=0)
+    # state machine:
+    # enabled  -> enabled: ~outlier | recovering
+    #          -> disabled: outlier & ~recovering -> decaying
+    # disabled -> disabled: ~decayed
+    #          -> enabled: decayed                -> recovering
+    enabled = freqs["enabled"]
+    outlier = freqs["outlier"]
+    recovering = freqs.index.isin(RECOVERING.index)
+    decayed = freqs.index.isin(decayed.index)
 
-    return enabled
+    # currently enabled
+    etoe = freqs[enabled & (~outlier | recovering)]
+    etod = freqs[enabled & outlier & ~recovering]
+    # update decaying configs
+    DECAYING = pd.concat([DECAYING, pd.Series(now, index=etod.index)])
+
+    # currently disabled
+    dtod = freqs[~enabled & ~decayed]  # unused
+    dtoe = freqs[~enabled & decayed]
+    # update recovering configs
+    RECOVERING = pd.concat([RECOVERING, pd.Series(now, index=dtoe.index)])
+
+    # output chmask configs
+    indices = pd.concat([etoe, dtoe]).sort_index()["index"].astype(int)
+    return indices.groupby("dev_eui").aggregate(list).rename("chmask")
 
 
 def cleanup(ns):
@@ -180,3 +185,8 @@ def set_low_tstudent_pvalue_threshold(threshold: float):
 def set_config_decay_threshold(seconds: int):
     global CONFIG_DECAY_THRESHOLD
     CONFIG_DECAY_THRESHOLD = seconds
+
+
+def set_config_recover_threshold(seconds: int):
+    global CONFIG_RECOVER_THRESHOLD
+    CONFIG_RECOVER_THRESHOLD = seconds
