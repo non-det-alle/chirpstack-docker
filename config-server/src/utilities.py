@@ -90,7 +90,7 @@ def get_freq_indices(ns: NS, dev_euis: list[str]) -> pd.DataFrame:
 
 
 def set_channel_mask_configs(ns: NS, configs: pd.Series):
-    for dev_eui, chmask in configs.items():
+    for dev_eui, chmask in configs.dropna().items():
         config_store = DeviceConfigStore(enabled_uplink_channel_indices=chmask)
         try:
             ns.set_device_config(str(dev_eui), config_store)
