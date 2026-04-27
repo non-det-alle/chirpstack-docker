@@ -3,9 +3,11 @@
  * Key elements are preceded by a comment with lots of dashes ( ///////////// )
  */
 
+#include "elora-example-jammer.h"
 #include "elora-example-utilities.h"
 
 // ns3 imports
+#include "ns3/constant-position-mobility-model.h"
 #include "ns3/core-module.h"
 #include "ns3/csma-helper.h"
 #include "ns3/internet-stack-helper.h"
@@ -52,12 +54,7 @@ main(int argc, char* argv[])
     uint16_t destPort = 1700;
 
     double periods = 24; // H * D
-    int gatewayRings = 1;
-    double range = 2540.25; // Max range for downlink (!) coverage probability > 0.98 (with okumura)
-    int nDevices = 1;
-    std::string sir = "CROCE";
     bool initializeSF = true;
-    bool real = false;
     bool file = false; // Warning: will produce a file for each gateway
     bool log = false;
 
@@ -71,14 +68,7 @@ main(int argc, char* argv[])
         cmd.AddValue("token", "ChirpStack API token (to be generated in ChirpStack UI)", token);
         cmd.AddValue("destPort", "Port used by the ChirpStack Gateway Bridge", destPort);
         cmd.AddValue("periods", "Number of periods to simulate (1 period = 1 hour)", periods);
-        cmd.AddValue("rings", "Number of gateway rings in hexagonal topology", gatewayRings);
-        cmd.AddValue("range", "Radius of the device allocation disk around a gateway)", range);
-        cmd.AddValue("devices", "Number of end devices to include in the simulation", nDevices);
-        cmd.AddValue("sir", "Signal to Interference Ratio matrix used for interference", sir);
         cmd.AddValue("initSF", "Whether to initialize the SFs", initializeSF);
-        cmd.AddValue("adr", "ns3::BaseEndDeviceLorawanMac::ADR");
-        cmd.AddValue("real", "Use realistic traffic [IEEE C802.16p-11/0102r2]", real);
-        cmd.AddValue("file", "Whether to enable .pcap tracing on gateways", file);
         cmd.AddValue("log", "Whether to enable logs", log);
         cmd.Parse(argc, argv);
         if (auto f = getenv("CHIRPSTACK_API_TOKEN_FILE"); f)
@@ -96,19 +86,11 @@ main(int argc, char* argv[])
     Config::SetDefault("ns3::BaseEndDeviceLorawanMac::EnableCryptography", BooleanValue(true));
     Config::SetDefault("ns3::BaseEndDeviceLorawanMac::FType",
                        EnumValue(LorawanMacHeader::CONFIRMED_DATA_UP));
-    ///////////////// Needed to manage the variance introduced by real world interaction
-    Config::SetDefault("ns3::ClassAEndDeviceLorawanMac::RecvWinSymb", UintegerValue(16));
 
     /* Logging options */
     if (log)
     {
         //!> Requirement: build ns3 with debug option
-        // LogComponentEnable("UdpForwarder", LOG_LEVEL_DEBUG);
-        // LogComponentEnable("ChirpStackHelper", LOG_LEVEL_DEBUG);
-        // LogComponentEnable("RestApiHelper", LOG_LEVEL_DEBUG);
-        // LogComponentEnable("ClassAEndDeviceLorawanMac", LOG_LEVEL_INFO);
-        LogComponentEnable("BaseEndDeviceLorawanMac", LOG_LEVEL_DEBUG);
-        // LogComponentEnable ("LoraFrameHeader", LOG_LEVEL_INFO);
         /* Monitor state changes of devices */
         // LogComponentEnable("EloraUtilities", LOG_LEVEL_ALL);
         /* Formatting */
@@ -146,63 +128,42 @@ main(int argc, char* argv[])
         channel = CreateObject<LoraChannel>(loss, delay);
     }
 
-    /*************************
-     *  Position & mobility  *
-     *************************/
-
-    MobilityHelper mobilityEd;
-    MobilityHelper mobilityGw;
-    Ptr<RangePositionAllocator> rangeAllocator;
-    {
-        // Gateway mobility
-        mobilityGw.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-        // In hex tiling, distance = range * cos (pi/6) * 2 to have no holes
-        double gatewayDistance = range * std::cos(M_PI / 6) * 2;
-        auto hexAllocator = CreateObject<HexGridPositionAllocator>();
-        hexAllocator->SetAttribute("Z", DoubleValue(30.0));
-        hexAllocator->SetAttribute("distance", DoubleValue(gatewayDistance));
-        mobilityGw.SetPositionAllocator(hexAllocator);
-
-        // End Device mobility
-        mobilityEd.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-        // We define rho to generalize the allocation disk for any number of gateway rings
-        double rho = range + 2.0 * gatewayDistance * (gatewayRings - 1);
-        rangeAllocator = CreateObject<RangePositionAllocator>();
-        rangeAllocator->SetAttribute("rho", DoubleValue(rho));
-        rangeAllocator->SetAttribute("ZRV",
-                                     StringValue("ns3::UniformRandomVariable[Min=1|Max=10]"));
-        rangeAllocator->SetAttribute("range", DoubleValue(range));
-        mobilityEd.SetPositionAllocator(rangeAllocator);
-    }
-
     /******************
      *  Create Nodes  *
      ******************/
 
     Ptr<Node> exitnode;
-    NodeContainer gateways;
-    NodeContainer endDevices;
+    Ptr<Node> gateway;
+    Ptr<Node> endDevice;
+    Ptr<Node> jammer;
     {
         exitnode = CreateObject<Node>();
 
-        int nGateways = 3 * gatewayRings * gatewayRings - 3 * gatewayRings + 1;
-        gateways.Create(nGateways);
-        mobilityGw.Install(gateways);
-        rangeAllocator->SetNodes(gateways);
+        gateway = CreateObject<Node>();
+        auto mobilityGw = CreateObject<ConstantPositionMobilityModel>();
+        mobilityGw->SetPosition(Vector(0, 0, 1));
+        gateway->AggregateObject(mobilityGw);
 
-        endDevices.Create(nDevices);
-        mobilityEd.Install(endDevices);
+        endDevice = CreateObject<Node>();
+        auto mobilityEd1 = CreateObject<ConstantPositionMobilityModel>();
+        mobilityEd1->SetPosition(Vector(1, 0, 1));
+        endDevice->AggregateObject(mobilityEd1);
+
+        jammer = CreateObject<Node>();
+        auto mobilityEd2 = CreateObject<ConstantPositionMobilityModel>();
+        mobilityEd2->SetPosition(Vector(0, 1, 1));
+        jammer->AggregateObject(mobilityEd2);
     }
 
     /************************
      *  Create Net Devices  *
      ************************/
 
-    /* Csma between gateways and tap-bridge (represented by exitnode) */
+    /* Csma between gateway and tap-bridge (represented by exitnode) */
     {
-        NodeContainer csmaNodes(NodeContainer(exitnode), gateways);
+        auto csmaNodes = NodeContainer(exitnode, gateway);
 
-        // Connect the bridge to the gateways with csma
+        // Connect the bridge to the gateway with csma
         CsmaHelper csma;
         csma.SetChannelAttribute("DataRate", DataRateValue(DataRate(5000000)));
         csma.SetChannelAttribute("Delay", TimeValue(MilliSeconds(2)));
@@ -223,16 +184,16 @@ main(int argc, char* argv[])
     ///////////////// Attach a Tap-bridge to outside the simulation to the server csma device
     TapBridgeHelper tapBridge;
     tapBridge.SetAttribute("Mode", StringValue("ConfigureLocal"));
-    tapBridge.SetAttribute("DeviceName", StringValue("ns3-tap"));
+    tapBridge.SetAttribute("DeviceName", StringValue(tapName));
     tapBridge.Install(exitnode, exitnode->GetDevice(0));
 
-    /* Radio side (between end devicees and gateways) */
+    /* Radio side (between end device and gateway) */
     LorawanHelper helper;
     NetDeviceContainer gwNetDev;
     {
         // Physiscal layer settings
         LoraPhyHelper phyHelper;
-        phyHelper.SetInterference("IsolationMatrix", EnumValue(sirMap.at(sir)));
+        phyHelper.SetInterference("IsolationMatrix", EnumValue(LoraInterferenceHelper::GOURSAUD));
         phyHelper.SetChannel(channel);
 
         // Create a LoraDeviceAddressGenerator
@@ -245,15 +206,22 @@ main(int argc, char* argv[])
         macHelper.SetRegion(LorawanMacHelper::EU);
         macHelper.SetAddressGenerator(addrGen);
 
-        // Create the LoraNetDevices of the gateways
+        // Create the LoraNetDevice of the gateway
         phyHelper.SetType("ns3::GatewayLoraPhy");
         macHelper.SetType("ns3::GatewayLorawanMac");
-        gwNetDev = helper.Install(phyHelper, macHelper, gateways);
+        gwNetDev = helper.Install(phyHelper, macHelper, gateway);
 
-        // Create the LoraNetDevices of the end devices
+        // Create the LoraNetDevice of the end device
         phyHelper.SetType("ns3::EndDeviceLoraPhy");
         macHelper.SetType("ns3::ClassAEndDeviceLorawanMac");
-        helper.Install(phyHelper, macHelper, endDevices);
+        helper.Install(phyHelper, macHelper, endDevice);
+
+        // Create the jammer's PHY layer and remove it from channel receivers
+        auto jamPhy = CreateObject<EndDeviceLoraPhy>();
+        jamPhy->SetChannel(channel);
+        channel->Remove(jamPhy);
+        jamPhy->SetMobility(jammer->GetObject<MobilityModel>());
+        jammer->AggregateObject(jamPhy);
     }
 
     /*************************
@@ -261,28 +229,29 @@ main(int argc, char* argv[])
      *************************/
 
     {
-        // Install UDP forwarders in gateways
+        // Install UDP forwarder in gateway
         UdpForwarderHelper forwarderHelper;
         forwarderHelper.SetAttribute("RemoteAddress", AddressValue(Ipv4Address("10.1.2.1")));
         forwarderHelper.SetAttribute("RemotePort", UintegerValue(destPort));
-        forwarderHelper.Install(gateways);
+        forwarderHelper.Install(gateway);
 
-        // Install applications in EDs
-        if (!real)
-        {
-            PeriodicSenderHelper appHelper;
-            appHelper.SetPeriodGenerator(
-                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
-            appHelper.SetPacketSizeGenerator(
-                CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(5.0)));
-            appHelper.Install(endDevices);
-        }
-        else
-        {
-            UrbanTrafficHelper appHelper;
-            appHelper.SetDeviceGroups(Commercial);
-            appHelper.Install(endDevices);
-        }
+        // Install application in ED
+        PeriodicSenderHelper appHelper;
+        appHelper.SetPeriodGenerator(
+            CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(30.0)));
+        appHelper.SetPacketSizeGenerator(
+            CreateObjectWithAttributes<ConstantRandomVariable>("Constant", DoubleValue(13.0)));
+        appHelper.Install(endDevice);
+
+        // Create and install jammer app
+        auto jamApp = CreateObject<LoraJammer>();
+        jamApp->SetAttribute("PacketSize", UintegerValue(255));
+        jamApp->SetAttribute("SpreadingFactor", UintegerValue(7));
+        jamApp->SetAttribute("TxPowerDBm", IntegerValue(14));
+        jamApp->SetAttribute("Frequency", UintegerValue(868100000));
+        jamApp->SetPhy(jammer->GetObject<EndDeviceLoraPhy>());
+        jamApp->SetNode(jammer);
+        jammer->AddApplication(jamApp);
     }
 
     /***************************
@@ -295,21 +264,21 @@ main(int argc, char* argv[])
         OnInterrupt(SIG_DFL); // avoid multiple executions
         exit(0);
     });
-    ///////////////////// Register tenant, gateways, and devices on the real server
+    ///////////////////// Register tenant, gateway, and device on the real server
     csHelper.SetTenant(tenant);
     csHelper.InitConnection(apiAddr, apiPort, token);
-    csHelper.Register(NodeContainer(endDevices, gateways));
+    csHelper.Register(NodeContainer(endDevice, gateway));
 
     // Initialize SF emulating the ADR algorithm, then add variance to path loss
-    std::vector<int> devPerSF(1, nDevices);
+    std::vector<int> devPerSF(1, 1);
     if (initializeSF)
     {
-        devPerSF = LorawanMacHelper::SetSpreadingFactorsUp(endDevices, gateways, channel);
+        devPerSF = LorawanMacHelper::SetSpreadingFactorsUp(endDevice, gateway, channel);
     }
     loss->SetNext(rayleigh);
 
     // Print current configuration
-    PrintConfigSetup(nDevices, range, gatewayRings, devPerSF);
+    PrintConfigSetup(1, 1, 1, devPerSF);
     helper.EnableSimulationTimePrinting(Seconds(3600));
 
     Config::ConnectWithoutContext(

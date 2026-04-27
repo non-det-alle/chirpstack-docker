@@ -55,40 +55,9 @@ destPort = 1700
 # Number of periods to simulate (1 period = 1 hour)
 periods = 24
 
-# Number of gateway rings to instantiate using hexagonal topology
-#   
-#   1 = 1 gateway
-#   2 = 7 gateways
-#   3 = 19 gateways
-#   ...
-#
-rings = 1
-
-# Radius of the device allocation disk around a gateway
-# (range * 2 = gateway distance)
-range = 2540.25
-
-# Number of end devices to include in the simulation
-devices = 1
-
-# Signal to Interference Ratio matrix used for interference
-# 
-# Options: [CROCE, GOURSAUD, ALHOA]
-#
-sir = "GOURSAUD"
-
 # Whether to pre-initialize the SFs of devices before starting the sumulation
 # (uses a conservative version of the default ADR algorithm, without power management)
 initSF = true
-
-# Whether to enable the ADR bit 
-adr = true
-
-# Use realistic urban M2M traffic instead of test devices (5s period, 5B payload) 
-real = false
-
-# Whether to enable .pcap tracing on gateways
-file = false
 
 # Enable logging to std output
 log = true
