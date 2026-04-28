@@ -35,6 +35,14 @@ class ChirpStackClient:
     def __exit__(self, exc_type, exc_value, traceback):
         self.channel.close()
 
+    def get_tenants(self) -> list[str]:
+        resp: api.ListTenantsResponse = self.tenant_api.List(
+            api.ListTenantsRequest(limit=100), metadata=self.metadata
+        )
+        if resp.total_count == 0:
+            return []
+        return [tenant.name for tenant in resp.result]
+
     def get_tenant_id(self, tenant_name: str) -> str:
         resp: api.ListTenantsResponse = self.tenant_api.List(
             api.ListTenantsRequest(search=tenant_name, limit=100),
@@ -103,9 +111,7 @@ class ChirpStackClient:
     ##                             DEVICE CONFIG STORE API                             ##
     #####################################################################################
 
-    def set_device_config(
-        self, dev_eui: str, config_store: DeviceConfigStore
-    ) -> None:
+    def set_device_config(self, dev_eui: str, config_store: DeviceConfigStore) -> None:
         try:
             self.device_config_store_api.Set(
                 api.SetDeviceConfigStoreRequest(

@@ -4,8 +4,8 @@
 # This must point to the API interface.
 endpoint = "localhost:8080"
 
-# The tenant id (retrieved using the web-interface)
-tenant_name = "ELoRa 1"
+# The tenants targeted by the algorithm (empty = all)
+tenant_names = ["ChirpStack"]
 
 # Time-series database for the metrics collection system
 [influxdb]

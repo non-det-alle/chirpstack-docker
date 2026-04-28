@@ -60,9 +60,9 @@ def capacity_from_pdr(pdr):
     return -0.5 * (a + sp.lambertw(-(a / np.exp(a))).real * np.exp(gt) * np.array(pdr))
 
 
-def get_devices(ns: NS) -> pd.DataFrame:
+def get_tenant_devices(ns: NS, tenant_name: str) -> pd.DataFrame:
     try:
-        tenant_id = ns.get_tenant_id(config.CHIRPSTACK_TENANT)
+        tenant_id = ns.get_tenant_id(tenant_name)
         application_id = ns.get_application_ids(tenant_id)[0]
         device_list = ns.list_devices(application_id)
     except Exception as e:
@@ -70,6 +70,23 @@ def get_devices(ns: NS) -> pd.DataFrame:
     device_list = pd.DataFrame(device_list)
     device_list = device_list.set_index("dev_eui").sort_index()
     return device_list
+
+
+def get_devices(ns: NS) -> pd.DataFrame:
+    if not config.CHIRPSTACK_TENANTS:
+        tenants = ns.get_tenants()
+    else:
+        tenants = config.CHIRPSTACK_TENANTS
+    devices = []
+    for t in tenants:
+        try:
+            devices = devices + [get_tenant_devices(ns, t)]
+        except NetworkServerError:
+            pass
+    if not devices:
+        err = f"No devices found among tenants {tenants}"
+        raise NetworkServerError(err)
+    return pd.concat(devices)
 
 
 def get_freq_indices(ns: NS, dev_euis: list[str]) -> pd.DataFrame:
