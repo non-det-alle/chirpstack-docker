@@ -2,17 +2,19 @@
  * Set of utilities to keep top example files more clean.
  */
 
+#ifndef ELORA_EXAMPLE_UTILITIES_H
+#define ELORA_EXAMPLE_UTILITIES_H
+
 #include "ns3/lora-interference-helper.h"
 #include "ns3/lorawan-helper.h"
 
 #include <csignal>
 #include <vector>
 
-using namespace ns3;
-using namespace lorawan;
-
 namespace ns3
 {
+
+using namespace lorawan;
 
 /**
  * \brief Computes total deployment area
@@ -79,3 +81,5 @@ const std::map<EndDeviceLoraPhy::State, std::string> stateMap = {
 void OnStateChange(EndDeviceLoraPhy::State oldS, EndDeviceLoraPhy::State newS);
 
 } // namespace ns3
+
+#endif /* ELORA_EXAMPLE_UTILITIES_H */

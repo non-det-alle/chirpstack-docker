@@ -43,6 +43,8 @@ main(int argc, char* argv[])
      *  Simulation parameters  *
      ***************************/
 
+    std::string tapName = "ns3-tap";
+
     std::string tenant = "ELoRa";
     std::string apiAddr = "127.0.0.1";
     uint16_t apiPort = 8090;
@@ -62,6 +64,7 @@ main(int argc, char* argv[])
     /* Expose parameters to command line */
     {
         CommandLine cmd(__FILE__);
+        cmd.AddValue("tapName", "Name of the TAP device created by the simulation.", tapName);
         cmd.AddValue("tenant", "ChirpStack tenant name of this simulation", tenant);
         cmd.AddValue("apiAddr", "ChirpStack REST API endpoint IP address", apiAddr);
         cmd.AddValue("apiPort", "ChirpStack REST API endpoint IP address", apiPort);
@@ -73,7 +76,7 @@ main(int argc, char* argv[])
         cmd.AddValue("devices", "Number of end devices to include in the simulation", nDevices);
         cmd.AddValue("sir", "Signal to Interference Ratio matrix used for interference", sir);
         cmd.AddValue("initSF", "Whether to initialize the SFs", initializeSF);
-        cmd.AddValue("adr", "ns3::BaseEndDeviceLorawanMac::ADRBit");
+        cmd.AddValue("adr", "ns3::BaseEndDeviceLorawanMac::ADR");
         cmd.AddValue("real", "Use realistic traffic [IEEE C802.16p-11/0102r2]", real);
         cmd.AddValue("file", "Whether to enable .pcap tracing on gateways", file);
         cmd.AddValue("log", "Whether to enable logs", log);
@@ -90,7 +93,6 @@ main(int argc, char* argv[])
     ///////////////// Real-time operation, necessary to interact with the outside world.
     GlobalValue::Bind("SimulatorImplementationType", StringValue("ns3::RealtimeSimulatorImpl"));
     GlobalValue::Bind("ChecksumEnabled", BooleanValue(true));
-    Config::SetDefault("ns3::BaseEndDeviceLorawanMac::ADRBackoff", BooleanValue(true));
     Config::SetDefault("ns3::BaseEndDeviceLorawanMac::EnableCryptography", BooleanValue(true));
     Config::SetDefault("ns3::BaseEndDeviceLorawanMac::FType",
                        EnumValue(LorawanMacHeader::CONFIRMED_DATA_UP));
@@ -123,8 +125,10 @@ main(int argc, char* argv[])
     Ptr<NakagamiPropagationLossModel> rayleigh;
     Ptr<LoraChannel> channel;
     {
-        // Delay obtained from distance and speed of light in vacuum (constant)
-        Ptr<PropagationDelayModel> delay = CreateObject<ConstantSpeedPropagationDelayModel>();
+        // Delay obtained from distance and speed of light in air
+        double refraction = 1.0003;
+        auto delay = CreateObject<ConstantSpeedPropagationDelayModel>();
+        delay->SetAttribute("Speed", DoubleValue(299792458 / refraction));
 
         // This one is empirical and it encompasses average loss due to distance, shadowing (i.e.
         // obstacles), weather, height
